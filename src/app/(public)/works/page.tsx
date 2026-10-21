@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+import Contact from "@/components/Contact";
+import WorksExplorer from "@/components/works/WorksExplorer";
+import { content } from "@/lib/content";
+import { getProjects } from "@/lib/projects";
+
+export const metadata: Metadata = {
+  title: content.worksPage.heading,
+  description: `Selected projects by ${content.name} — ${content.headline.line1} ${content.headline.line2}.`,
+};
+
+export default async function WorksPage() {
+  const projects = await getProjects();
+
+  return (
+    <main className="relative">
+      {/* Opaque content layer that slides up over the fixed contact screen. */}
+      <div className="relative z-10 rounded-b-[16px] bg-background sm:rounded-b-[24px]">
+        <WorksExplorer projects={projects} />
+      </div>
+
+      {/* Same fixed contact screen + 100vh reveal spacer as the homepage. */}
+      <Contact />
+    </main>
+  );
+}

@@ -1,26 +1,102 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/* Design tokens (single source of truth as CSS variables)            */
+/* ------------------------------------------------------------------ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #e8e8e8; /* light gray canvas */
+  --foreground: #111111; /* near-black text */
+  --charcoal: #333333; /* dark section background */
+  --accent: #333333; /* accent on light backgrounds */
+  --accent-on-dark: #a0a0a0; /* accent on dark (#333333) backgrounds */
+  --accent-contrast: #ffffff;
+  --radius-reveal: 16px;
+  --radius-reveal-md: 24px;
 }
 
+/* Map the tokens into Tailwind's theme so they are usable as utilities:
+   bg-background, text-foreground, bg-charcoal, bg-accent, text-accent,
+   text-accent-on-dark … */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-charcoal: var(--charcoal);
+  --color-accent: var(--accent);
+  --color-accent-on-dark: var(--accent-on-dark);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ------------------------------------------------------------------ */
+/* Continuous marquee (About hero cards)                              */
+/* Plain CSS so the animation always ships, independent of utility    */
+/* generation. The track holds two identical copies, so translating    */
+/* by -50% loops without a visible jump.                              */
+/* ------------------------------------------------------------------ */
+.marquee-track {
+  animation: marquee 20s linear infinite;
+  will-change: transform;
+}
+
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
   }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* Reduced motion: keep the row moving, just much slower. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation-duration: 140s;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Lenis smooth scrolling (mirrored from lenis/dist/lenis.css)        */
+/* ------------------------------------------------------------------ */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                               */
+/* ------------------------------------------------------------------ */
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter-tight), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* `clip` prevents horizontal scroll WITHOUT creating a scroll container,
+     which would otherwise break `position: sticky` on the hero. */
+  overflow-x: clip;
+}
+
+/* Respect users who ask for less motion: never animate scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

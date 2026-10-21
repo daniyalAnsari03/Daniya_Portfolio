@@ -1,0 +1,36 @@
+Build the next section of the homepage: the "cover" section that slides over the hero, plus the reel pill. Touch only what is needed. Do not build Works or Contact yet (placeholders stay). Do not push or deploy.
+
+1) Content (add to src/lib/content.ts):
+- label: "Web developer / AI engineer" (the words "AI engineer" in accent orange)
+- heading line 1: "Web apps that work." (the word "work." in accent)
+- heading line 2: "Agents that think." (the word "think." in accent)
+- closing text: "Full-stack apps and AI agents – designed, built and shipped end to end." (the words "end to end." in accent)
+- pill text: "MY WORK"
+Do not copy any text from other websites.
+
+2) Cover transition:
+- The hero becomes sticky (top 0) while the next section scrolls up from the bottom and COVERS it. The new section has a black background (#0A0A0A), rounded TOP corners (about 48px desktop, 28px mobile) and sits above the hero (z-index).
+- As the hero gets covered, subtly scale it down a little (about 0.96) and dim it, driven by scroll progress (useScroll + useTransform). Only transform and opacity.
+
+3) Inside the black section (white text, accent orange for highlighted words), centered:
+- small label at the top, then the 2-line heading (large, font-weight 500, tight tracking, same font as hero), generous spacing.
+- Below the heading, an orange (#FF5B2E) ARCH shape (rounded top, flat bottom) rises into view from the bottom as you scroll.
+
+4) Arch to pill (scroll-driven):
+- As you keep scrolling, the arch grows and morphs into a wide PILL (stadium shape, fully rounded) of about 70vw x 26vw on desktop (about 92vw wide on mobile). Orange fades into a looping video that fills the pill.
+- Video: find a short, abstract/tech looping video with a free license that allows use (Pexels or Pixabay), DOWNLOAD it into /public (do NOT hotlink), compress it to a small size (under about 3 MB, 720p, no audio), and use muted, loop, autoPlay, playsInline, with a poster image. Pause it when it is out of view. If you cannot download a video, use an animated CSS gradient instead and tell me.
+- Big text "MY WORK" (white, huge, font-weight 500, tight tracking) centered over the pill. Clicking the pill scrolls smoothly (Lenis) to id="works".
+- Prefer transform and clip-path for the morph. Avoid animating layout properties (width/height/top). It must stay smooth on mobile.
+
+5) Closing text and background color change:
+- Below the pill show the closing text (large, centered, white, accent words orange).
+- While scrolling through this part, the section background transitions from black to light gray (#E8E8E8) and the text color from white to #111111 (accent stays orange), scroll-driven. The pill stays black/video. After this, the section ends and the empty "works" placeholder follows.
+
+6) Layout details:
+- Section total height about 250-300vh so the animations have room, with the content staying pinned (sticky) while the scroll progress plays, where it makes sense.
+- The fixed bottom nav pill stays above everything. Active item while inside this section stays "Home".
+- Respect prefers-reduced-motion: show the final static state with no scroll-linked animation.
+
+7) Responsive (mandatory): mobile, tablet, desktop. Heading uses clamp(), pill/arch scale correctly, text never overlaps the nav pill.
+
+When done: run lint and a production build, fix errors, and tell me what you created, which video you used (source + license), and how to run it. Do not start the next section.
