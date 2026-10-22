@@ -5,7 +5,7 @@ export default function Loading() {
         <section className="relative">
           <div className="relative">
             {/* Mirrors the pinned heading (centre at 36vh). */}
-            <div className="pointer-events-none sticky top-[36vh] z-0 h-0">
+            <div className="pointer-events-none sticky top-[calc(var(--vh-sm)*0.36)] z-0 h-0">
               <div className="absolute inset-x-0 top-0 flex -translate-y-1/2 justify-center px-[2.6vw]">
                 <div className="h-[clamp(40px,13vw,90px)] w-[70vw] animate-pulse rounded-2xl bg-charcoal/10 lg:h-[clamp(52px,9vw,190px)]" />
               </div>
@@ -13,7 +13,7 @@ export default function Loading() {
 
             <ul
               aria-hidden="true"
-              className="relative z-10 flex flex-col gap-[13vh] px-[2.6vw] pt-[85vh] pb-[26vh]"
+              className="relative z-10 flex flex-col gap-[calc(var(--vh-sm)*0.13)] px-[2.6vw] pt-[calc(var(--vh-sm)*0.85)] pb-[calc(var(--vh-sm)*0.26)]"
             >
               {[0, 1, 2].map((item) => (
                 <li
@@ -29,7 +29,7 @@ export default function Loading() {
             </ul>
           </div>
 
-          <div aria-hidden="true" className="h-[18vh]" />
+          <div aria-hidden="true" className="h-[calc(var(--vh-sm)*0.18)]" />
         </section>
       </div>
     </main>

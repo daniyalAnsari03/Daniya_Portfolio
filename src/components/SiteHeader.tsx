@@ -97,7 +97,7 @@ export default function SiteHeader() {
   return (
     <motion.header
       {...hide}
-      className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-start justify-between px-6 pt-6 lg:px-7 lg:pt-7"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[var(--z-chrome)] flex items-start justify-between px-6 pt-[calc(24px+env(safe-area-inset-top,0px))] lg:px-7 lg:pt-[calc(28px+env(safe-area-inset-top,0px))]"
     >
       {onHome ? (
         <motion.span

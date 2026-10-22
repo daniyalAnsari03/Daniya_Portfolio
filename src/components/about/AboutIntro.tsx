@@ -44,7 +44,7 @@ export default function AboutIntro({ intro }: { intro: AboutIntroData }) {
   if (!hasContent) return null;
 
   return (
-    <section className="px-[2.6vw] pt-[clamp(110px,9vw,160px)] pb-[14vh]">
+    <section className="px-[2.6vw] pt-[clamp(110px,9vw,160px)] pb-[calc(var(--vh-sm)*0.14)]">
       <div className="grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-12 lg:gap-y-[90px]">
         {intro.statementHeading && (
           <h2 className="max-w-full text-[clamp(28px,3vw,58px)] leading-[1.05] font-normal tracking-[-0.02em] text-foreground lg:col-span-12 lg:col-start-1 lg:row-start-1 lg:max-w-[62vw]">

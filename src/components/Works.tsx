@@ -71,8 +71,30 @@ export default function Works({
       setReady(true);
     };
 
+    /**
+     * A real phone fires `resize` every time the browser toolbar shows or
+     * hides — that changes only the HEIGHT. Re-measuring then would change
+     * the pinned height of the section and shift the page while the user
+     * scrolls, so a height-only change is ignored (a big one — a rotation
+     * or a real window resize — is still honoured).
+     */
+    let lastWidth = window.innerWidth;
+    let lastHeight = window.innerHeight;
+    const onResize = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const widthChanged = width !== lastWidth;
+      const heightChanged = height !== lastHeight;
+      const bigHeightChange =
+        lastHeight > 0 && Math.abs(height - lastHeight) > lastHeight * 0.2;
+      if (!widthChanged && !(heightChanged && bigHeightChange)) return;
+      lastWidth = width;
+      lastHeight = height;
+      measure();
+    };
+
     measure();
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", onResize);
     window.addEventListener("load", measure);
     const observer = new ResizeObserver(measure);
     const row = rowRef.current;
@@ -85,7 +107,7 @@ export default function Works({
     void document.fonts?.ready.then(measure);
 
     return () => {
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("load", measure);
       observer.disconnect();
     };
@@ -165,7 +187,7 @@ export default function Works({
         id="works"
         className="relative w-full rounded-b-[16px] bg-background sm:rounded-b-[24px]"
       >
-        <div className="pt-[18vh] pb-[18vh]">
+        <div className="pt-[calc(var(--vh-sm)*0.18)] pb-[calc(var(--vh-sm)*0.18)]">
           <h2 className={HEADING_CLASS}>{heading}</h2>
         </div>
       </section>
@@ -178,10 +200,10 @@ export default function Works({
         id="works"
         className="relative w-full rounded-b-[16px] bg-background sm:rounded-b-[24px]"
       >
-        <div ref={wrapperRef} className="pt-[18vh]">
+        <div ref={wrapperRef} className="pt-[calc(var(--vh-sm)*0.18)]">
           <h2 className={HEADING_CLASS}>{heading}</h2>
 
-          <div className="mt-[8vh] snap-x snap-mandatory overflow-x-auto pb-[8vh] [scrollbar-width:thin]">
+          <div className="mt-[calc(var(--vh-sm)*0.08)] snap-x snap-mandatory overflow-x-auto pb-[calc(var(--vh-sm)*0.08)] [scrollbar-width:thin]">
             <ul
               ref={rowRef}
               className="flex w-max items-end gap-[4vw] px-4 lg:gap-[1.8vw]"
@@ -201,10 +223,10 @@ export default function Works({
     >
       <div
         ref={wrapperRef}
-        className="relative min-h-screen"
+        className="relative min-h-[var(--vh-sm)]"
         style={{ height: ready ? wrapperHeight : undefined }}
       >
-        <div className="sticky top-0 h-screen w-full overflow-hidden">
+        <div className="sticky top-0 h-[var(--vh-sm)] w-full overflow-hidden">
           {/* Heading sits behind the cards and only shows through the gaps. */}
           <motion.h2
             style={{ opacity: headingOpacity }}
@@ -226,7 +248,7 @@ export default function Works({
                 typeof value === "number" ? `${value}px` : value
               }, 0, 0)`;
             }}
-            className={`absolute top-[24vh] left-0 z-10 flex w-max items-end gap-[4vw] lg:top-[27vh] lg:gap-[1.8vw] ${
+            className={`absolute top-[calc(var(--vh-sm)*0.24)] left-0 z-10 flex w-max items-end gap-[4vw] lg:top-[calc(var(--vh-sm)*0.27)] lg:gap-[1.8vw] ${
               inView ? "will-change-transform" : ""
             }`}
           >

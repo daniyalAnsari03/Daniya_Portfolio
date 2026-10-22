@@ -63,7 +63,7 @@ const PHOTO_TOP_VW_DESKTOP = PHOTO_HEAD_TOP_FRAC * PHOTO_H_VW_DESKTOP; // 1.318v
    left = headCenter − headCenterFrac · renderedWidth. */
 const PHOTO_W_MOBILE = `calc(${PHOTO_HEAD_W_MOBILE} / ${PHOTO_HEAD_WIDTH_FRAC})`;
 const PHOTO_LEFT_MOBILE = `calc(${PHOTO_HEAD_CENTER_VW_MOBILE}vw - ${PHOTO_HEAD_CENTER_FRAC} * (${PHOTO_HEAD_W_MOBILE} / ${PHOTO_HEAD_WIDTH_FRAC}))`;
-const PHOTO_BOTTOM_MOBILE = `-${PHOTO_MOBILE_DOWN_VH}vh`;
+const PHOTO_BOTTOM_MOBILE = `calc(var(--vh-sm) * -${PHOTO_MOBILE_DOWN_VH / 100})`;
 
 const photoStyle = {
   "--photo-w": PHOTO_W_MOBILE,
@@ -71,7 +71,7 @@ const photoStyle = {
   "--photo-left": PHOTO_LEFT_MOBILE,
   "--photo-left-lg": `${PHOTO_LEFT_VW_DESKTOP.toFixed(4)}vw`,
   "--photo-bottom": PHOTO_BOTTOM_MOBILE,
-  "--photo-top-lg": `calc(30vh - ${PHOTO_TOP_VW_DESKTOP.toFixed(4)}vw)`,
+  "--photo-top-lg": `calc(var(--vh-sm) * 0.3 - ${PHOTO_TOP_VW_DESKTOP.toFixed(4)}vw)`,
 } as CSSProperties;
 
 /** A single headline line that reveals by sliding up from behind a clip. */
@@ -153,109 +153,119 @@ export default function Hero({
   const d = load.corners.distance;
 
   return (
+    /* The sticky BACKGROUND layer is sized with the LARGE viewport (so it
+       never leaves a gap when the browser toolbar hides), while the content
+       box below is sized with the STABLE small viewport — the headline, the
+       photo and the socials are then always inside the visible screen, even
+       on a real phone with the toolbar shown. Both units are identical to
+       `vh` on desktop and in a mobile emulator, so nothing changes there. */
     <section
       id="home"
-      className="sticky top-0 z-0 h-screen w-full overflow-hidden bg-background"
+      className="sticky top-0 z-0 h-viewport-lg w-full overflow-hidden bg-background"
     >
-      {/* Headline: line 1 (behind photo) + line 2 & subtitle (in front).
-          No z-index on this wrapper so the children stack against the photo:
-          10 < photo 20 < 30. */}
-      <div className="absolute inset-x-0 top-[18vh] lg:top-[21vh]">
-        {/* Line 1 — sits behind the photo */}
-        <div className="relative z-10 pl-[13vw] lg:pl-[29vw]">
-          <RevealLine delay={load.line1.delay} duration={load.line1.duration}>
-            {line1}
-          </RevealLine>
+      {/* Content box — the stable small viewport. Everything that is
+          positioned inside the hero is anchored to this box. */}
+      <div className="relative h-viewport-sm w-full">
+        {/* Headline: line 1 (behind photo) + line 2 & subtitle (in front).
+            No z-index on this wrapper so the children stack against the
+            photo: 10 < photo 20 < 30. */}
+        <div className="absolute inset-x-0 top-[calc(var(--vh-sm)*0.18)] lg:top-[calc(var(--vh-sm)*0.21)]">
+          {/* Line 1 — sits behind the photo */}
+          <div className="relative z-10 pl-[13vw] lg:pl-[29vw]">
+            <RevealLine delay={load.line1.delay} duration={load.line1.duration}>
+              {line1}
+            </RevealLine>
+          </div>
+
+          {/* Line 2 — right-aligned below line 1 (in front of the photo) */}
+          <div className="relative z-30 pr-[4vw] text-right lg:pr-0 lg:pl-[60vw] lg:text-left">
+            <RevealLine delay={load.line2.delay} duration={load.line2.duration}>
+              {line2}
+            </RevealLine>
+
+            <motion.p
+              className="mr-[4vw] ml-auto mt-[calc(var(--vh-sm)*0.015)] w-[38vw] text-left text-[15px] leading-[1.25] tracking-tight text-foreground/55 lg:mr-0 lg:ml-0 lg:mt-[calc(var(--vh-sm)*0.02)] lg:w-auto lg:text-[clamp(15px,1.2vw,22px)] lg:leading-normal"
+              initial={reduce || frozen ? false : { opacity: 0 }}
+              animate={frozen || play ? { opacity: 1 } : undefined}
+              transition={{
+                duration: load.subtitle.duration,
+                ease: load.ease,
+                delay: load.subtitle.delay,
+              }}
+            >
+              {subtitle}
+            </motion.p>
+          </div>
         </div>
 
-        {/* Line 2 — right-aligned below line 1 (in front of the photo) */}
-        <div className="relative z-30 pr-[4vw] text-right lg:pr-0 lg:pl-[60vw] lg:text-left">
-          <RevealLine delay={load.line2.delay} duration={load.line2.duration}>
-            {line2}
-          </RevealLine>
+        {/* Photo — positioned from the measured HEAD center/top (the head is
+            not centered in the image), never with -translate-x-1/2 on the
+            image. <1024px: head min(34vw, 285px), head center 35vw,
+            bottom-anchored (bottom: 0) so the person reaches the bottom
+            edge. ≥1024px: head 14.8vw, head top 30vh, head center 41vw,
+            bottom-cropped by overflow. Uniform scale (aspect kept). */}
+        <motion.div
+          style={photoStyle}
+          className="pointer-events-none absolute bottom-[var(--photo-bottom)] left-[var(--photo-left)] z-20 w-[var(--photo-w)] lg:bottom-auto lg:top-[var(--photo-top-lg)] lg:left-[var(--photo-left-lg)] lg:w-[var(--photo-w-lg)]"
+          initial={reduce || frozen ? false : { opacity: 0, y: load.photo.from }}
+          animate={
+            frozen || play ? { opacity: 1, y: load.photo.to } : undefined
+          }
+          transition={{
+            duration: load.photo.duration,
+            ease: load.ease,
+            delay: load.photo.delay,
+          }}
+        >
+          <Image
+            src={content.photo.src}
+            alt={content.photo.alt}
+            width={content.photo.width}
+            height={content.photo.height}
+            preload
+            quality={95}
+            sizes={`(max-width: 1023px) ${PHOTO_W_VW_MOBILE.toFixed(0)}vw, ${PHOTO_W_VW_DESKTOP.toFixed(1)}vw`}
+            className="h-auto w-full select-none"
+          />
+        </motion.div>
 
-          <motion.p
-            className="mr-[4vw] ml-auto mt-[1.5vh] w-[38vw] text-left text-[15px] leading-[1.25] tracking-tight text-foreground/55 lg:mr-0 lg:ml-0 lg:mt-[2vh] lg:w-auto lg:text-[clamp(15px,1.2vw,22px)] lg:leading-normal"
-            initial={reduce || frozen ? false : { opacity: 0 }}
-            animate={frozen || play ? { opacity: 1 } : undefined}
-            transition={{
-              duration: load.subtitle.duration,
-              ease: load.ease,
-              delay: load.subtitle.delay,
-            }}
-          >
-            {subtitle}
-          </motion.p>
-        </div>
+        {/* Bottom-left: scroll-down button (desktop only) */}
+        <motion.button
+          type="button"
+          onClick={() => scrollToSection("works")}
+          aria-label="Scroll down"
+          className="absolute bottom-5 left-5 z-40 hidden h-[54px] w-[54px] items-center justify-center rounded-full bg-white text-charcoal ring-1 ring-black/10 lg:bottom-7 lg:left-7 lg:flex lg:h-16 lg:w-16"
+          {...corner(d, 2)}
+          transition={{ duration: 0.4, ease: load.ease }}
+          whileHover={{ y: -3 }}
+          whileTap={{ y: 0 }}
+        >
+          <ArrowDown className="h-5 w-5 lg:h-6 lg:w-6" />
+        </motion.button>
+
+        {/* Bottom-right: social links (below the nav pill on mobile / tablet) */}
+        <motion.div
+          className="absolute bottom-[calc(var(--vh-sm)*0.03+env(safe-area-inset-bottom,0px))] right-6 z-40 flex items-center gap-3 text-charcoal lg:bottom-8 lg:right-7 lg:gap-4"
+          {...corner(d, 3)}
+        >
+          {content.social.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={link.label}
+              className="transition-opacity duration-300 hover:opacity-60"
+            >
+              {link.icon === "github" ? (
+                <GitHubIcon className="h-5 w-5" />
+              ) : (
+                <LinkedInIcon className="h-5 w-5" />
+              )}
+            </a>
+          ))}
+        </motion.div>
       </div>
-
-      {/* Photo — positioned from the measured HEAD center/top (the head is not
-          centered in the image), never with -translate-x-1/2 on the image.
-          <1024px: head min(34vw, 285px), head center 35vw, bottom-anchored
-          (bottom: 0) so the person reaches the bottom edge. ≥1024px: head
-          14.8vw, head top 30vh, head center 41vw, bottom-cropped by overflow.
-          Uniform scale (aspect kept). */}
-      <motion.div
-        style={photoStyle}
-        className="pointer-events-none absolute bottom-[var(--photo-bottom)] left-[var(--photo-left)] z-20 w-[var(--photo-w)] lg:bottom-auto lg:top-[var(--photo-top-lg)] lg:left-[var(--photo-left-lg)] lg:w-[var(--photo-w-lg)]"
-        initial={reduce || frozen ? false : { opacity: 0, y: load.photo.from }}
-        animate={
-          frozen || play ? { opacity: 1, y: load.photo.to } : undefined
-        }
-        transition={{
-          duration: load.photo.duration,
-          ease: load.ease,
-          delay: load.photo.delay,
-        }}
-      >
-        <Image
-          src={content.photo.src}
-          alt={content.photo.alt}
-          width={content.photo.width}
-          height={content.photo.height}
-          preload
-          quality={95}
-          sizes={`(max-width: 1023px) ${PHOTO_W_VW_MOBILE.toFixed(0)}vw, ${PHOTO_W_VW_DESKTOP.toFixed(1)}vw`}
-          className="h-auto w-full select-none"
-        />
-      </motion.div>
-
-      {/* Bottom-left: scroll-down button (desktop only) */}
-      <motion.button
-        type="button"
-        onClick={() => scrollToSection("works")}
-        aria-label="Scroll down"
-        className="absolute bottom-5 left-5 z-40 hidden h-[54px] w-[54px] items-center justify-center rounded-full bg-white text-charcoal ring-1 ring-black/10 lg:bottom-7 lg:left-7 lg:flex lg:h-16 lg:w-16"
-        {...corner(d, 2)}
-        transition={{ duration: 0.4, ease: load.ease }}
-        whileHover={{ y: -3 }}
-        whileTap={{ y: 0 }}
-      >
-        <ArrowDown className="h-5 w-5 lg:h-6 lg:w-6" />
-      </motion.button>
-
-      {/* Bottom-right: social links (below the nav pill on mobile / tablet) */}
-      <motion.div
-        className="absolute bottom-[3vh] right-6 z-40 flex items-center gap-3 text-charcoal lg:bottom-8 lg:right-7 lg:gap-4"
-        {...corner(d, 3)}
-      >
-        {content.social.map((link) => (
-          <a
-            key={link.label}
-            href={link.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={link.label}
-            className="transition-opacity duration-300 hover:opacity-60"
-          >
-            {link.icon === "github" ? (
-              <GitHubIcon className="h-5 w-5" />
-            ) : (
-              <LinkedInIcon className="h-5 w-5" />
-            )}
-          </a>
-        ))}
-      </motion.div>
     </section>
   );
 }

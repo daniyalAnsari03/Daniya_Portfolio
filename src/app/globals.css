@@ -12,6 +12,28 @@
   --accent-contrast: #ffffff;
   --radius-reveal: 16px;
   --radius-reveal-md: 24px;
+
+  /* Single z-index for the fixed chrome (header + nav pill). It sits above
+     every page layer (the page transition wrappers sit at z-0, the page
+     content at z-10) and below the popup overlays (z-100). */
+  --z-chrome: 60;
+
+  /* Viewport height scale.
+     `--vh-sm` = the STABLE small viewport height (the browser toolbar is
+     always accounted for, so it never changes while scrolling) and
+     `--vh-lg` = the large viewport height (toolbar hidden).
+     Both fall back to `100vh` in browsers without the modern units, and
+     `100vh` is exactly what they resolve to on desktop and in a mobile
+     emulator — so every layout using them stays pixel-identical there. */
+  --vh-sm: 100vh;
+  --vh-lg: 100vh;
+}
+
+@supports (height: 100svh) {
+  :root {
+    --vh-sm: 100svh;
+    --vh-lg: 100lvh;
+  }
 }
 
 /* Map the tokens into Tailwind's theme so they are usable as utilities:
@@ -37,6 +59,12 @@
 /* ------------------------------------------------------------------ */
 .marquee-track {
   animation: marquee 20s linear infinite;
+}
+
+/* `will-change` only while the row actually runs — it is dropped when the
+   row is paused (offscreen / hidden tab) so the layer is not kept alive
+   for nothing. */
+.marquee-track[data-running="true"] {
   will-change: transform;
 }
 
@@ -54,6 +82,33 @@
   .marquee-track {
     animation-duration: 140s;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Viewport-height helpers                                            */
+/*                                                                     */
+/* They are built on the `--vh-sm` / `--vh-lg` scale, which carries the */
+/* `100vh` fallback for browsers without the small / large viewport    */
+/* units. Both units are identical to `vh` on desktop and in a mobile  */
+/* emulator, so nothing changes there — on a real phone `svh` is the  */
+/* STABLE small viewport (the toolbar never changes it) and `lvh` the  */
+/* large one (toolbar hidden). Use `svh` for anything that must not   */
+/* jitter while the browser chrome shows/hides.                        */
+/* ------------------------------------------------------------------ */
+.h-viewport-sm {
+  height: var(--vh-sm);
+}
+
+.h-viewport-lg {
+  height: var(--vh-lg);
+}
+
+.min-h-viewport-sm {
+  min-height: var(--vh-sm);
+}
+
+.min-h-viewport-lg {
+  min-height: var(--vh-lg);
 }
 
 /* ------------------------------------------------------------------ */
@@ -82,6 +137,11 @@ html.lenis body {
 html {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* `clip` (never `hidden`) stops horizontal overflow without creating a
+     scroll container — `position: sticky` (the hero) and Lenis keep
+     working. On the root element this also guarantees that
+     `document.documentElement.scrollWidth === clientWidth`. */
+  overflow-x: clip;
 }
 
 body {
@@ -92,6 +152,30 @@ body {
   /* `clip` prevents horizontal scroll WITHOUT creating a scroll container,
      which would otherwise break `position: sticky` on the hero. */
   overflow-x: clip;
+}
+
+/* ------------------------------------------------------------------ */
+/* Contact reveal (the shared footer screen)                           */
+/*                                                                     */
+/* While the reveal is active the document background switches to the */
+/* dark token, so a light strip can never show below the dark screen  */
+/* on a real phone (where the browser toolbar changes the viewport     */
+/* height at the very end of the page). Instant switch, no transition.  */
+/* ------------------------------------------------------------------ */
+html[data-footer="true"],
+html[data-footer="true"] body {
+  background-color: var(--charcoal);
+}
+
+/* ------------------------------------------------------------------ */
+/* Scroll lock (popups + page transition)                              */
+/*                                                                     */
+/* The root element carries its own `overflow-x: clip`, so the body no */
+/* longer propagates its overflow to the viewport. Locking therefore   */
+/* has to happen on the root element itself.                            */
+/* ------------------------------------------------------------------ */
+html[data-scroll-locked="true"] {
+  overflow: hidden;
 }
 
 /* Respect users who ask for less motion: never animate scrolling. */

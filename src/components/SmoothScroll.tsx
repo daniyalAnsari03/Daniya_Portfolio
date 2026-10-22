@@ -11,14 +11,27 @@ const prefersReducedMotion = () => {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 };
 
+/**
+ * True on devices that scroll by touch only (phones, tablets). Lenis never
+ * intercepts a touch drag, so on those the page can only be frozen by taking
+ * the root element's scrolling away. On a mouse device Lenis already stops —
+ * locking the root there would drop the scrollbar and shift the layout, so it
+ * is deliberately not done.
+ */
+const hasNativeTouchScroll = () => {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(hover: none)").matches;
+};
+
 /** Freeze page scrolling while an overlay (e.g. the contact popup) is open. */
 export function lockScroll() {
   if (lenis) {
     lenis.stop();
-    return;
   }
-  if (typeof document !== "undefined") {
-    document.body.style.overflow = "hidden";
+  if (typeof document === "undefined") return;
+  document.body.style.overflow = "hidden";
+  if (hasNativeTouchScroll()) {
+    document.documentElement.setAttribute("data-scroll-locked", "true");
   }
 }
 
@@ -26,11 +39,10 @@ export function lockScroll() {
 export function unlockScroll() {
   if (lenis) {
     lenis.start();
-    return;
   }
-  if (typeof document !== "undefined") {
-    document.body.style.overflow = "";
-  }
+  if (typeof document === "undefined") return;
+  document.documentElement.removeAttribute("data-scroll-locked");
+  document.body.style.overflow = "";
 }
 
 /**

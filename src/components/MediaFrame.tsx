@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useRef } from "react";
 import {
   clampCoverAdjust,
   coverAdjustStyle,
@@ -53,15 +54,69 @@ export default function MediaFrame({
   const style = coverAdjustStyle(clampCoverAdjust(adjust, DEFAULT_CARD_ADJUST));
   const classes = `h-full w-full ${className ?? ""}`;
   const unoptimized = isRemoteImageSrc(src);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  /**
+   * A video only plays while it is on screen (and while the tab is visible).
+   * A muted, looping video that is decoded in the background is one of the
+   * biggest jank sources on a phone.
+   */
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let inView = true;
+
+    const play = () => {
+      if (!inView || document.visibilityState !== "visible") return;
+      void video.play().catch(() => {
+        /* autoplay refused — the poster frame stays */
+      });
+    };
+    const pause = () => video.pause();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        play();
+      } else {
+        pause();
+      }
+    };
+
+    let observer: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          inView = entry.isIntersecting;
+          if (inView) {
+            play();
+          } else {
+            pause();
+          }
+        },
+        { threshold: 0.1 },
+      );
+      observer.observe(video);
+    } else {
+      play();
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   if (kind === "video") {
     return (
       <video
+        ref={videoRef}
         src={src}
         muted
         loop
         playsInline
-        autoPlay
         preload="metadata"
         className={classes}
         style={style}

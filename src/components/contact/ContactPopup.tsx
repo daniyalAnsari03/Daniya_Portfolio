@@ -134,7 +134,7 @@ export default function ContactPopup({
 
           <motion.div
             data-lenis-prevent
-            className="relative z-10 w-full max-w-[calc(100vw-24px)] max-h-[calc(100vh-60px)] rounded-[20px] bg-charcoal p-[20px] sm:max-w-[720px] sm:p-[48px] lg:max-w-[880px] lg:p-[75px] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)]"
+            className="relative z-10 w-full max-w-[calc(100%-24px)] max-h-[calc(var(--vh-sm)-60px)] rounded-[20px] bg-charcoal p-[20px] sm:max-w-[720px] sm:p-[48px] lg:max-w-[880px] lg:p-[75px] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)]"
             initial={reduce ? false : { opacity: 0, y: "10%" }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: "10%" }}

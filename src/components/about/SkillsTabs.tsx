@@ -80,7 +80,7 @@ export default function SkillsTabs({
   };
 
   return (
-    <div className="mt-[8vh]">
+    <div className="mt-[calc(var(--vh-sm)*0.08)]">
       <motion.div
         role="tablist"
         aria-label="Skill categories"
@@ -121,14 +121,14 @@ export default function SkillsTabs({
       </motion.div>
 
       {active.skills.length === 0 ? (
-        <p className="mt-[7vh] text-center text-sm text-foreground/40">
+        <p className="mt-[calc(var(--vh-sm)*0.07)] text-center text-sm text-foreground/40">
           No skills listed yet.
         </p>
       ) : (
         <AnimatePresence mode="wait">
           <motion.ul
             key={active.id}
-            className="mt-[7vh] grid grid-cols-1 gap-x-6 gap-y-[clamp(32px,3vw,56px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px]"
+            className="mt-[calc(var(--vh-sm)*0.07)] grid grid-cols-1 gap-x-6 gap-y-[clamp(32px,3vw,56px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px]"
             variants={listParent}
             initial="hidden"
             whileInView="visible"

@@ -24,7 +24,15 @@ function cardClass(index: number): string {
 }
 
 /** Shared card frame: pattern size, rounded corners, cover fit. */
-function Card({ card, sizeClass }: { card: AboutHeroCard; sizeClass: string }) {
+function Card({
+  card,
+  sizeClass,
+  priority = false,
+}: {
+  card: AboutHeroCard;
+  sizeClass: string;
+  priority?: boolean;
+}) {
   return (
     <div
       className={`relative shrink-0 overflow-hidden bg-charcoal/5 ${ABOUT_HERO_CARD_RADIUS_CLASS} ${sizeClass}`}
@@ -34,6 +42,7 @@ function Card({ card, sizeClass }: { card: AboutHeroCard; sizeClass: string }) {
         kind={card.mediaType}
         adjust={card.coverAdjust}
         sizes="(min-width: 1024px) 21vw, (min-width: 640px) 34vw, 62vw"
+        priority={priority}
       />
     </div>
   );
@@ -75,6 +84,35 @@ export default function MediaMarquee({
   /** The row only slides when the set fills the window. */
   const [slide, setSlide] = useState(false);
 
+  /** The row is only animated while it is actually on screen. */
+  const [inView, setInView] = useState(true);
+  const [tabVisible, setTabVisible] = useState(true);
+
+  // Pause the row while it is offscreen — a single CSS animation, no React
+  // work per frame.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: "10% 0px" },
+    );
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Pause the row while the tab is in the background.
+  useEffect(() => {
+    const onVisibility = () =>
+      setTabVisible(document.visibilityState === "visible");
+    onVisibility();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   // Measure the set (cards + gaps) and the visible window. The row is
   // re-measured on resize and whenever the cards change.
   useIsomorphicLayoutEffect(() => {
@@ -95,11 +133,24 @@ export default function MediaMarquee({
     const observer = new ResizeObserver(measure);
     observer.observe(set);
     observer.observe(container);
-    window.addEventListener("resize", measure);
+
+    // A real phone fires `resize` whenever the browser toolbar shows or
+    // hides — that only changes the height, never the measured widths. Only
+    // a width change is reacted to, so the row is never re-measured (and
+    // never re-renders) while the user scrolls.
+    let lastWidth = window.innerWidth;
+    const onResize = () => {
+      const width = window.innerWidth;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      measure();
+    };
+
+    window.addEventListener("resize", onResize);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", onResize);
     };
   }, [cards.length]);
 
@@ -107,26 +158,39 @@ export default function MediaMarquee({
 
   const delayed = slide && !reduce && startDelay > 0;
 
+  /**
+   * The row runs only when it can be seen: the page is ready, the row is on
+   * screen and the tab is visible. The frozen copy of an outgoing page keeps
+   * its own state, so the snapshot never animates. Reduced motion does NOT
+   * stop the row — it only slows it down (see the CSS).
+   */
+  const running = slide && inView && tabVisible && (frozen || play);
+
   return (
-    <div ref={containerRef} className="w-full overflow-hidden">
+    <div ref={containerRef} className="w-full overflow-x-clip">
       <div
         className={`${slide ? "marquee-track -ml-[6vw]" : "mx-auto"} flex w-max items-end`}
-        style={
-          delayed
-            ? {
-                animationDelay: `${startDelay}s`,
-                // Paused until the page is ready — the delay only starts
-                // counting once the row is allowed to run.
-                animationPlayState: frozen || play ? "running" : "paused",
-              }
-            : undefined
-        }
+        data-running={running ? "true" : undefined}
+        style={{
+          ...(delayed ? { animationDelay: `${startDelay}s` } : {}),
+          // Paused until the page is ready — the delay only starts counting
+          // once the row is allowed to run. It is also paused while the row
+          // is offscreen or the tab is hidden, so the animation never costs
+          // anything the user cannot see.
+          animationPlayState: running ? "running" : "paused",
+        }}
       >
-        {/* The admin's cards — exactly one set, nothing repeated. */}
+        {/* The admin's cards — exactly one set, nothing repeated.
+            The first card is above the fold, so it is loaded eagerly; every
+            other card is lazy. The clone below stays lazy. */}
         <ul ref={setRef} className="flex shrink-0 items-end">
           {cards.map((card, index) => (
             <li key={card.id} className={cardClass(index)}>
-              <Card card={card} sizeClass={aboutHeroCardSizeClass(index)} />
+              <Card
+                card={card}
+                sizeClass={aboutHeroCardSizeClass(index)}
+                priority={index === 0}
+              />
             </li>
           ))}
         </ul>

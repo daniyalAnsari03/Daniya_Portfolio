@@ -16,7 +16,7 @@ export default async function Home() {
   ]);
 
   return (
-    <main className="relative">
+    <main className="relative w-full overflow-x-clip">
       {/* Opaque content layers, stacked above the fixed contact screen. */}
       <div className="relative z-10">
         {/* The hero stays pinned while the cover slides up over it. */}

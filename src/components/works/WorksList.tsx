@@ -124,7 +124,7 @@ function StickyHeading({
   const countLabel = String(projects.length).padStart(2, "0");
 
   return (
-    <div className="pointer-events-none sticky top-[36vh] z-0 h-0">
+    <div className="pointer-events-none sticky top-[calc(var(--vh-sm)*0.36)] z-0 h-0">
       <div className={`absolute inset-x-0 top-0 -translate-y-1/2 ${SIDE_PAD}`}>
         <motion.h1
           style={{ color }}
@@ -239,7 +239,7 @@ export default function WorksList({ projects, onSelect }: WorksListProps) {
 
         {projects.length === 0 ? (
           <div
-            className={`flex min-h-[50vh] items-start justify-center ${SIDE_PAD} pt-[85vh] pb-[26vh]`}
+            className={`flex min-h-[calc(var(--vh-sm)*0.5)] items-start justify-center ${SIDE_PAD} pt-[calc(var(--vh-sm)*0.85)] pb-[calc(var(--vh-sm)*0.26)]`}
           >
             <p className="text-center text-[clamp(18px,2.2vw,30px)] font-medium tracking-[-0.02em] text-foreground/50">
               {content.worksPage.empty}
@@ -248,7 +248,7 @@ export default function WorksList({ projects, onSelect }: WorksListProps) {
         ) : (
           <ul
             key={isDesktop ? "desktop" : "mobile"}
-            className={`relative z-10 flex flex-col gap-[13vh] ${SIDE_PAD} pt-[85vh] pb-[26vh]`}
+            className={`relative z-10 flex flex-col gap-[calc(var(--vh-sm)*0.13)] ${SIDE_PAD} pt-[calc(var(--vh-sm)*0.85)] pb-[calc(var(--vh-sm)*0.26)]`}
           >
             {projects.map((project, index) => (
               <ProjectCard
@@ -267,7 +267,7 @@ export default function WorksList({ projects, onSelect }: WorksListProps) {
 
       {/* Keeps the released heading inside the content wrapper so it never
           crosses onto the fixed contact screen underneath. */}
-      <div aria-hidden="true" className="h-[18vh]" />
+      <div aria-hidden="true" className="h-[calc(var(--vh-sm)*0.18)]" />
     </section>
   );
 }

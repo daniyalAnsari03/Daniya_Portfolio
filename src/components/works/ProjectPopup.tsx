@@ -170,7 +170,7 @@ export default function ProjectPopup({
             aria-labelledby={headingId}
             tabIndex={-1}
             data-lenis-prevent
-            className="relative z-10 flex h-[92dvh] w-full max-w-[1600px] flex-col overflow-hidden rounded-t-[16px] bg-white text-[#111111] shadow-[0_-24px_80px_-24px_rgba(0,0,0,0.8)] outline-none"
+            className="relative z-10 flex h-[calc(var(--vh-sm)*0.92)] w-full max-w-[1600px] flex-col overflow-hidden rounded-t-[16px] bg-white text-[#111111] shadow-[0_-24px_80px_-24px_rgba(0,0,0,0.8)] outline-none"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: "100%" }}
             animate={{ opacity: 1, y: 0 }}
             exit={

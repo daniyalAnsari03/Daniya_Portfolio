@@ -31,10 +31,10 @@ export default function AboutHero({
   const headingMeasure = lines.length > 1 ? "" : "mx-auto max-w-[92vw] lg:max-w-[38vw]";
 
   return (
-    <section id="about" className="min-h-[100svh] pb-[6vh]">
+    <section id="about" className="min-h-[var(--vh-sm)] pb-[calc(var(--vh-sm)*0.06)]">
       {/* Heading block starts at 20vh; its fixed minimum height makes the
           cards row begin at 62vh, so its top peeks into the first screen. */}
-      <div className="flex min-h-[62vh] justify-center px-6 pt-[20vh] sm:px-8 lg:px-12">
+      <div className="flex min-h-[calc(var(--vh-sm)*0.62)] justify-center px-6 pt-[calc(var(--vh-sm)*0.2)] sm:px-8 lg:px-12">
         <div className="w-full max-w-[1000px] text-center">
           {lines.length > 0 && (
             <h1

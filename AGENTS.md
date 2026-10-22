@@ -720,6 +720,61 @@ which lowers the quality of an upload even with `quality={95}`.
   anywhere in the app — only the file extension is derived from the content
   type.
 
+## Real-mobile viewport, overflow + scroll lock (`docs/fix.txt`)
+
+Three Chrome-Android-only bugs: horizontal overflow on `/about`, the hero
+photo/socials cut off by the toolbar, and a light strip below the Contact
+reveal. Everything below is invisible on desktop and in the desktop emulator.
+
+- **Viewport scale (`globals.css`):** `--vh-sm` / `--vh-lg` are `100vh` in
+  `:root` and become `100svh` / `100lvh` inside `@supports (height: 100svh)` —
+  the plain `vh` fallback comes first. Utilities in the markup use
+  `calc(var(--vh-sm)*0.18)` style values (or `.h-viewport-sm` / `.h-viewport-lg`
+  / `.min-h-viewport-*`), never raw `vh`/`svh` in a single declaration. `svh`
+  (stable small viewport) for anything the user must see with the toolbar
+  shown; `lvh` (large viewport) only for full-screen backgrounds/reveal layers.
+- **Overflow:** `html` and `body` both `overflow-x: clip` (never `hidden`), plus
+  `overflow-x-clip` on the three public page roots and the marquee wrapper.
+  Fixed chrome/contact layers use `overflow-x-clip overflow-y-hidden`. The page
+  transition wrappers clip too. No element uses `100vw`; `scrollWidth` equals
+  `clientWidth` on `/`, `/works`, `/about`.
+- **Fixed chrome:** `--z-chrome: 60` is the single z-index token for
+  `SiteHeader` + `Nav` (popups stay at `z-[100]`). The nav pill and the hero
+  socials add `env(safe-area-inset-bottom)`, the header
+  `env(safe-area-inset-top)`; `viewport` export in `src/app/layout.tsx` is
+  `device-width` / `initialScale: 1` / `viewportFit: "cover"` (zoom never
+  disabled).
+- **Page wrapper idle state:** `PageTransition` applies NO transform when idle
+  (`{ transform: "none", willChange: undefined }` + `display: contents`) so it
+  never becomes a containing block for fixed children; `will-change` is only
+  set while the transition runs.
+- **Hero:** background sticky layer `h-viewport-lg` (lvh, no gap when the
+  toolbar hides) + one inner content box `h-viewport-sm` (svh) that every
+  hero offset/photo/social anchors to. Photo bottom stays
+  `calc(var(--vh-sm) * -0.08)` (same `bottom` anchoring, same head-derived
+  left/top), so nothing about the desktop framing changed.
+- **Contact reveal:** fixed layer `fixed inset-0 min-h-viewport-lg` and the
+  spacer `h-viewport-lg` share the same unit, so they always agree. While the
+  spacer intersects the viewport (IntersectionObserver, not the frozen copy)
+  the component sets `data-footer="true"` on `<html>`; `html[data-footer]`
+  (and its body) switch to `--charcoal` instantly, so no light strip can show
+  when the toolbar reappears.
+- **Scroll lock:** `lockScroll()` stops Lenis and sets `body` overflow; on
+  touch-only devices (`hover: none`) it also sets
+  `html[data-scroll-locked="true"]` (`overflow: hidden`) because with
+  `overflow-x: clip` on the root the body lock no longer propagates. Desktop
+  skips the root lock so the scrollbar (and the layout) never shifts.
+- **Resize handlers:** `Works`, `Nav`, `MediaMarquee` only re-measure on a
+  width change (or a >20% height change in Works), so the toolbar showing or
+  hiding never re-renders or shifts the page.
+- **Performance:** the About marquee keeps one CSS `translate3d` loop, paused
+  via `animationPlayState` when offscreen (`IntersectionObserver`) or the tab
+  is hidden, with `will-change` only while `[data-running="true"]`
+  (`prefers-reduced-motion` only slows it to 140s). Marquee/media videos play
+  only while in view (no `autoPlay` attr; `MediaFrame` observer) and the first
+  marquee card is `priority`, the rest lazy. Popups use
+  `calc(var(--vh-sm)*0.92)` / `max-h-[calc(var(--vh-sm)-60px)]`.
+
 ## Tuning
 
 - `SPEED` (`Works.tsx`, top of file): horizontal px travelled per 1px of vertical

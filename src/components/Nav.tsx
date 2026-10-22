@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -22,52 +22,20 @@ export default function Nav() {
 
   // Route-derived highlight: purely a function of the pathname, so the server
   // and the first client render always agree (/ -> Home, /works -> Works,
-  // /about -> About). Nothing here touches browser globals.
-  const routeActive = content.nav.find((item) => item.href === pathname)?.target;
+  // /about -> About). Nested paths map the same way.
+  const routeActive = content.nav.find((item) => pathname.startsWith(item.href) && item.href !== "/")
+    ? content.nav.find((item) => pathname.startsWith(item.href) && item.href !== "/")?.target
+    : pathname === "/" || pathname.startsWith("/") && content.nav.some((item) => item.href === "/" && pathname === "/")
+      ? content.nav.find((item) => item.href === "/")?.target
+      : content.nav.find((item) => pathname.startsWith(item.href))?.target;
 
-  // Homepage scroll highlight. It stays `null` (Home) until after mount, so it
-  // can never change the first render or cause a hydration mismatch.
-  const [scrollActive, setScrollActive] = useState<string | null>(null);
-
-  const active =
-    pathname === "/" ? scrollActive ?? home : routeActive ?? home;
+  const active = routeActive ?? home;
 
   // Have every destination ready before the click (the <Link> prefetches too,
   // this makes sure all three are warm even if the pill is never hovered).
   useEffect(() => {
     for (const item of content.nav) router.prefetch(item.href);
   }, [router]);
-
-  useEffect(() => {
-    // Section-based highlighting only applies to the homepage.
-    if (pathname !== "/") return;
-
-    const works = content.nav.find((item) => item.target === "works")?.target;
-
-    const update = () => {
-      const vh = window.innerHeight;
-
-      // Works stays active while it spans the middle of the viewport.
-      const worksEl = works ? document.getElementById(works) : null;
-      if (worksEl && works) {
-        const rect = worksEl.getBoundingClientRect();
-        if (rect.top <= vh * 0.5 && rect.bottom > vh * 0.5) {
-          setScrollActive(works);
-          return;
-        }
-      }
-
-      setScrollActive(home);
-    };
-
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, [pathname, home]);
 
   const handleSelect = (event: MouseEvent<HTMLAnchorElement>, item: NavItem) => {
     // Leave modified / non-primary clicks to the browser (new tab, etc.).
@@ -109,7 +77,7 @@ export default function Nav() {
   return (
     <motion.nav
       aria-label="Section navigation"
-      className="fixed inset-x-0 bottom-[8vh] z-50 flex justify-center px-4 lg:bottom-9"
+      className="fixed inset-x-0 bottom-[calc(var(--vh-sm)*0.08+env(safe-area-inset-bottom,0px))] z-[var(--z-chrome)] flex justify-center px-4 lg:bottom-9"
       initial={{ opacity: 0, y: load.nav.from }}
       animate={
         popupOpen

@@ -480,7 +480,7 @@ export default function PageTransition({ children }: { children: ReactNode }) {
     state.scrollY + viewportHeight,
   );
   const originY = state.scrollY + viewportHeight / 2;
-  const cardHeight = viewportHeight > 0 ? `${viewportHeight}px` : "100vh";
+  const cardHeight = viewportHeight > 0 ? `${viewportHeight}px` : "var(--vh-sm)";
 
   return (
     <PageSignalContext.Provider value={liveSignal}>
@@ -492,7 +492,7 @@ export default function PageTransition({ children }: { children: ReactNode }) {
         <PageSignalContext.Provider value={FROZEN_SIGNAL}>
           <div
             aria-hidden="true"
-            className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+            className="pointer-events-none fixed inset-0 z-0 overflow-x-clip overflow-y-hidden"
           >
             {/* Dark backdrop (design token) — revealed around the shrinking page. */}
             <div
@@ -532,7 +532,7 @@ export default function PageTransition({ children }: { children: ReactNode }) {
                     reads as a card that shrinks into the middle of the screen
                     and leaves the dark backdrop visible around it. */}
                 <div
-                  className="absolute inset-x-0 overflow-hidden bg-background"
+                  className="absolute inset-x-0 overflow-x-clip overflow-y-hidden bg-background"
                   style={{ top: state.scrollY, height: cardHeight }}
                 >
                   <div
@@ -555,19 +555,25 @@ export default function PageTransition({ children }: { children: ReactNode }) {
         key="page"
         className={
           transitioning
-            ? "pointer-events-none fixed inset-0 z-0 overflow-hidden bg-background"
+            ? "pointer-events-none fixed inset-0 z-0 overflow-x-clip overflow-y-hidden bg-background"
             : "contents"
         }
-        style={{
-          y: reduce ? "0%" : rise,
-          opacity: reduce ? fade : 1,
-          willChange:
-            transitioning && state.started
-              ? reduce
-                ? "opacity"
-                : "transform"
-              : undefined,
-        }}
+        style={
+          transitioning
+            ? {
+                y: reduce ? "0%" : rise,
+                opacity: reduce ? fade : 1,
+                willChange: state.started
+                  ? reduce
+                    ? "opacity"
+                    : "transform"
+                  : undefined,
+              }
+            : // Idle: NOTHING is applied — no transform at all, so the page
+              // never creates a containing block, a stacking context or a
+              // position:fixed enclosure. Only the transition needs those.
+              { transform: "none", willChange: undefined }
+        }
       >
         {transitioning ? state.incomingNode : state.node}
       </motion.div>

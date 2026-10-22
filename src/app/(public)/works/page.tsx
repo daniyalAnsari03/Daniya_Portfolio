@@ -13,7 +13,7 @@ export default async function WorksPage() {
   const projects = await getProjects();
 
   return (
-    <main className="relative">
+    <main className="relative w-full overflow-x-clip">
       {/* Opaque content layer that slides up over the fixed contact screen. */}
       <div className="relative z-10 rounded-b-[16px] bg-background sm:rounded-b-[24px]">
         <WorksExplorer projects={projects} />

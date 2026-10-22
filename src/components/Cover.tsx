@@ -109,7 +109,7 @@ export default function Cover({
         id="cover"
         className="relative z-10 rounded-t-[16px] bg-charcoal sm:rounded-t-[24px]"
       >
-        <div className="flex flex-col items-center px-6 pt-[25vh] pb-[30vh] text-center">
+        <div className="flex flex-col items-center px-6 pt-[calc(var(--vh-sm)*0.25)] pb-[calc(var(--vh-sm)*0.3)] text-center">
           <p className="text-[clamp(14px,1vw,20px)] font-medium tracking-tight text-white">
             {labelNode}
           </p>
@@ -122,7 +122,7 @@ export default function Cover({
             type="button"
             onClick={() => scrollToSection("works")}
             aria-label={reelLabel}
-            className="relative mt-[11vh] flex h-[36vw] w-[92vw] items-center justify-center overflow-hidden rounded-full bg-charcoal sm:h-[26vw] sm:w-[72vw] lg:h-[20vw] lg:w-[53vw]"
+            className="relative mt-[calc(var(--vh-sm)*0.11)] flex h-[36vw] w-[92vw] items-center justify-center overflow-hidden rounded-full bg-charcoal sm:h-[26vw] sm:w-[72vw] lg:h-[20vw] lg:w-[53vw]"
           >
             {reelVideoUrl ? (
               <video
@@ -148,7 +148,7 @@ export default function Cover({
           </button>
           <p
             ref={closingRef}
-            className="mt-[12vh] max-w-[24ch] text-[clamp(26px,3vw,64px)] leading-[1.1] font-medium tracking-[-0.03em] text-white"
+            className="mt-[calc(var(--vh-sm)*0.12)] max-w-[24ch] text-[clamp(26px,3vw,64px)] leading-[1.1] font-medium tracking-[-0.03em] text-white"
           >
             {closingText}
           </p>
@@ -163,7 +163,7 @@ export default function Cover({
       style={{ backgroundColor }}
       className="relative z-10 rounded-t-[16px] sm:rounded-t-[24px]"
     >
-      <div className="flex flex-col items-center px-6 pt-[25vh] pb-[30vh] text-center">
+      <div className="flex flex-col items-center px-6 pt-[calc(var(--vh-sm)*0.25)] pb-[calc(var(--vh-sm)*0.3)] text-center">
         <motion.p
           style={{ color: textColor }}
           initial={{ opacity: 0, y: 20 }}
@@ -197,7 +197,7 @@ export default function Cover({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.8, ease: EASE, delay: 0.1 }}
-          className="relative mt-[11vh] flex h-[36vw] w-[92vw] items-center justify-center overflow-hidden rounded-full bg-charcoal sm:h-[26vw] sm:w-[72vw] lg:h-[20vw] lg:w-[53vw]"
+          className="relative mt-[calc(var(--vh-sm)*0.11)] flex h-[36vw] w-[92vw] items-center justify-center overflow-hidden rounded-full bg-charcoal sm:h-[26vw] sm:w-[72vw] lg:h-[20vw] lg:w-[53vw]"
         >
           {reelVideoUrl ? (
             /* The reel video replaces the gradient, but keeps the pill shape. */
@@ -242,7 +242,7 @@ export default function Cover({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.8, ease: EASE, delay: 0.1 }}
-          className="mt-[12vh] max-w-[24ch] text-[clamp(26px,3vw,64px)] leading-[1.1] font-medium tracking-[-0.03em]"
+          className="mt-[calc(var(--vh-sm)*0.12)] max-w-[24ch] text-[clamp(26px,3vw,64px)] leading-[1.1] font-medium tracking-[-0.03em]"
         >
           {closingText}
         </motion.p>

@@ -17,7 +17,7 @@ export default function Skills({
   if (categories.length === 0) return null;
 
   return (
-    <section className="relative z-10 bg-background px-6 py-[12vh] sm:px-8 lg:px-12">
+    <section className="relative z-10 bg-background px-6 py-[calc(var(--vh-sm)*0.12)] sm:px-8 lg:px-12">
       <div className="mx-auto w-full max-w-[1400px]">
         <Reveal distance={40} className="text-center">
           <p className="text-xs font-medium tracking-[0.18em] text-foreground/40 uppercase">

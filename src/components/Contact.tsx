@@ -9,6 +9,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { content } from "@/lib/content";
+import { useFrozenPage } from "./PageTransition";
 import { CheckIcon, CopyIcon, GitHubIcon, LinkedInIcon } from "./icons";
 
 /**
@@ -52,6 +53,9 @@ export default function Contact({
   const spacerRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
+  // The frozen copy of an outgoing page must never touch the shared
+  // `data-footer` flag — the incoming page owns it.
+  const frozen = useFrozenPage();
 
   // Reveal progress: 0 when the spacer enters from the bottom, 1 when the page
   // reaches its end (spacer fills the viewport).
@@ -97,11 +101,45 @@ export default function Contact({
     };
   }, []);
 
+  /**
+   * Safety net for the reveal (real phones only): while the dark screen is
+   * uncovered, the document background is switched to the dark token, so a
+   * light strip can never show below it — not even for the frame in which
+   * the browser toolbar reappears at the very end of the page.
+   *
+   * The flag lives on <html> and is switched instantly (no transition).
+   */
+  useEffect(() => {
+    if (frozen) return;
+    const spacer = spacerRef.current;
+    if (!spacer || typeof IntersectionObserver === "undefined") return;
+
+    const root = document.documentElement;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          root.setAttribute("data-footer", "true");
+        } else {
+          root.removeAttribute("data-footer");
+        }
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(spacer);
+
+    return () => {
+      observer.disconnect();
+      root.removeAttribute("data-footer");
+    };
+  }, [frozen]);
+
   return (
     <>
       <section
         aria-label="Contact"
-        className="fixed inset-0 z-0 overflow-hidden bg-charcoal text-white"
+        className="fixed inset-0 z-0 min-h-viewport-lg overflow-x-clip overflow-y-hidden bg-charcoal text-white"
       >
         {/* Heading (white + accent) with the avatar straddling both lines.
             Layer order back-to-front is line 1 (z-0), avatar (z-10), line 2
@@ -109,7 +147,7 @@ export default function Contact({
             "together", whose letters are drawn over the circle. Each line is
             animated on its own so the heading block never creates its own
             stacking context (which would trap line 2 behind the avatar). */}
-        <div className="absolute inset-x-0 top-[24vh] lg:top-[18vh] px-6">
+        <div className="absolute inset-x-0 top-[calc(var(--vh-sm)*0.24)] px-6 lg:top-[calc(var(--vh-sm)*0.18)]">
           <h2 className="relative text-center text-[13.5vw] leading-[0.92] font-medium tracking-[-0.045em] lg:text-[8.2vw]">
             <motion.span
               style={reduce ? undefined : { opacity: headingOpacity, y: headingY }}
@@ -145,7 +183,7 @@ export default function Contact({
         </div>
 
         {/* Email + copy button. */}
-        <div className="absolute inset-x-0 top-[50vh] lg:top-[65vh] flex flex-col items-center gap-[1.4vh] px-6 text-center">
+        <div className="absolute inset-x-0 top-[calc(var(--vh-sm)*0.5)] flex flex-col items-center gap-[calc(var(--vh-sm)*0.014)] px-6 text-center lg:top-[calc(var(--vh-sm)*0.65)]">
           <p className="text-[15px] tracking-tight text-white/70 lg:text-[17px]">
             {content.contact.emailLabel}
           </p>
@@ -212,13 +250,16 @@ export default function Contact({
 
       {/* Flow spacer that drives the reveal and acts as the scroll anchor.
           `data-chrome-dark` marks the black screen it uncovers, so the fixed
-          header can invert to white while it sits under the header line. */}
+          header can invert to white while it sits under the header line.
+          It uses the SAME viewport unit as the fixed screen above (large
+          viewport), so the two always agree and no light strip can show
+          below the dark screen when the browser toolbar reappears. */}
       <div
         ref={spacerRef}
         id={content.contact.target}
         aria-hidden="true"
         data-chrome-dark="true"
-        className="h-screen w-full"
+        className="h-viewport-lg w-full"
       />
     </>
   );

@@ -32,9 +32,9 @@ export const ABOUT_HERO_CARD_SIZES_FALLBACK =
  * tall card's top lands at ~66svh and the rest at ~76svh — all top-aligned
  * and running past the fold.
  */
-export const ABOUT_HERO_CARD_LEVELS = ["mt-[14svh]", "mt-[4svh]", "mt-[14svh]"];
+export const ABOUT_HERO_CARD_LEVELS = ["mt-[calc(var(--vh-sm)*0.14)]", "mt-[calc(var(--vh-sm)*0.04)]", "mt-[calc(var(--vh-sm)*0.14)]"];
 
-export const ABOUT_HERO_CARD_LEVELS_FALLBACK = "mt-[14svh]";
+export const ABOUT_HERO_CARD_LEVELS_FALLBACK = "mt-[calc(var(--vh-sm)*0.14)]";
 
 /**
  * Width / height ratio of every pattern slot (desktop values — the ratio is

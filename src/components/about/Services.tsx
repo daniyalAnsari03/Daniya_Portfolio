@@ -18,7 +18,7 @@ export default function Services({ services }: { services: Service[] }) {
     <SectionRise
       id="about-services"
       dataChromeDark
-      className="relative z-0 flex flex-col justify-center bg-charcoal px-6 pt-[clamp(80px,8vw,130px)] pb-16 text-white sm:px-8 sm:pb-24 lg:min-h-[100svh] lg:px-12 lg:pb-[clamp(80px,8vw,130px)]"
+      className="relative z-0 flex flex-col justify-center bg-charcoal px-6 pt-[clamp(80px,8vw,130px)] pb-16 text-white sm:px-8 sm:pb-24 lg:min-h-[var(--vh-sm)] lg:px-12 lg:pb-[clamp(80px,8vw,130px)]"
     >
       <div className="mx-auto w-full max-w-[1400px]">
         <div className="text-center">
@@ -30,7 +30,7 @@ export default function Services({ services }: { services: Service[] }) {
           </h2>
         </div>
 
-        <div className="mt-[10vh] grid grid-cols-1 gap-x-6 gap-y-[clamp(40px,4vw,80px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px] lg:gap-y-[clamp(40px,3.5vw,72px)]">
+        <div className="mt-[calc(var(--vh-sm)*0.1)] grid grid-cols-1 gap-x-6 gap-y-[clamp(40px,4vw,80px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px] lg:gap-y-[clamp(40px,3.5vw,72px)]">
           {services.map((service, index) => (
             <Reveal
               key={service.id}

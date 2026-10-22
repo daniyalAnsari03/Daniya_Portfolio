@@ -18,7 +18,7 @@ export default function Education({ items }: { items: EducationItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <section className="relative z-10 px-6 pb-[16vh] sm:px-8 lg:px-12">
+    <section className="relative z-10 px-6 pb-[calc(var(--vh-sm)*0.16)] sm:px-8 lg:px-12">
       <div className="mx-auto w-full max-w-[1400px]">
         <Reveal distance={40} className="text-center">
           <p className="text-xs font-medium tracking-[0.18em] text-foreground/40 uppercase">
@@ -29,7 +29,7 @@ export default function Education({ items }: { items: EducationItem[] }) {
           </h2>
         </Reveal>
 
-        <div className="mt-[8vh] grid grid-cols-1 gap-x-6 gap-y-[clamp(32px,3vw,56px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px]">
+        <div className="mt-[calc(var(--vh-sm)*0.08)] grid grid-cols-1 gap-x-6 gap-y-[clamp(32px,3vw,56px)] sm:grid-cols-2 sm:gap-x-10 lg:grid-cols-3 lg:gap-x-[75px]">
           {items.map((item, index) => (
             <Reveal key={item.id} distance={40} delay={about.stagger * index}>
               <LineDraw style={{ backgroundImage: LINE_GRADIENT }} />
