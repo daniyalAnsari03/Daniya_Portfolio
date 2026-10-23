@@ -924,6 +924,182 @@ no `fetch`, no new dependency. The reply comes from a local stub.
   drawer or a logo state animates; `prefers-reduced-motion` falls back to plain
   fades.
 
+## Chatbot step 3 — internal MCP server (`docs/c.txt`)
+
+Read-only knowledge bridge for the chatbot agents. No UI, agent or `/api/chat`
+code yet.
+
+- **Packages:** `@openai/agents@^0.21.0` (+ `zod@^4.6.7` as a direct dependency)
+  installed. The Agents SDK's MCP client needs `@modelcontextprotocol/client`,
+  which is already present as its optional dependency. `@modelcontextprotocol/sdk`
+  is not installed and no MCP server package was added; the route implements the
+  small stateless JSON-RPC surface by hand.
+- **Route:** `src/app/api/mcp/route.ts` — internal, read-only, token protected.
+  Streamable HTTP, stateless (no session ids). POST only; GET/DELETE return 405.
+  Auth runs before parsing/tool code: `Authorization: Bearer <MCP_AUTH_TOKEN>`,
+  constant-time compared (`timingSafeEqual`, SHA-256 hashes when lengths differ);
+  missing/empty server token always returns 401. `Next.js 16` with Cache
+  Components rejects the `runtime`/`dynamic` route segment configs, so they are
+  omitted — the route is Node.js by default and a POST handler is always dynamic
+  (build shows `ƒ /api/mcp`).
+- **Tools:** exactly six read-only tools backed only by
+  `src/lib/chat/knowledge.ts` — `get_projects`, `get_project_detail`
+  (`id_or_name` ≤100), `get_cv`, `get_about`, `get_public_contact`,
+  `get_chatbot_knowledge`. Zod input schemas (converted with
+  `z.toJSONSchema`), one-line descriptions, `annotations.readOnlyHint: true`.
+  Null results become "No data available"; tool failures return generic text
+  with `isError`, never stack traces or env values. No write tools and no other
+  data access.
+- **Names:** `src/lib/chat/tool-names.ts` is the single source for the six tool
+  names and the next step's groups: `WORK_TOOLS` = projects + detail + knowledge,
+  `PROFILE_TOOLS` = CV + About + knowledge, `CONTACT_TOOLS` = public contact +
+  knowledge.
+
+## Chatbot step 4 — skills, voice and agents (`docs/d.txt`)
+
+The instructions and the four agents, still with no route, no UI and no model
+call. Data reaches the agents only through the internal MCP server.
+
+- **Skill files:** `src/lib/chat/skills/` — `voice.md` (shared persona,
+  language rules, Roman Urdu banned/preferred words, spoken clarity, honesty,
+  data safety, scope) plus `router.md`, `work.md`, `profile.md`, `contact.md`.
+  Each of the four starts with `name`/`description` frontmatter and has Role,
+  Tone, Answer format, Tools to use, What NOT to do, When data is missing and
+  Examples. The router hands off with NO text; specialists never hand off and
+  use only their listed tools.
+- **Loader:** `src/lib/chat/skills/load.ts` (`server-only`) reads the markdown
+  with `fs` from `process.cwd()/src/lib/chat/skills`, strips the frontmatter,
+  caches in module scope and exports `buildInstructions(skillName)` =
+  `voice.md` body + separator + the skill body. `next.config.ts` adds
+  `outputFileTracingIncludes: { "/api/chat": ["./src/lib/chat/skills/**/*"] }`.
+- **Agents:** `src/lib/chat/agents.ts` (`server-only`) exports
+  `createChatRuntime({ origin })` → `{ router, connect, close }` plus
+  `AGENT_NAMES` / `getAgentName`. Per request it reads `OPENAI_MODEL` and
+  `MCP_AUTH_TOKEN` (clear errors when missing), builds Work / Profile / Contact
+  agents with one `MCPServerStreamableHttp` each (`${origin}/api/mcp`,
+  `cacheToolsList: true`, bearer header, `toolFilter.allowedToolNames` from
+  `tool-names.ts`) and a Router with `handoff()`s and no tools. Model settings
+  are `maxTokens: 1200` + `reasoning: { effort: "low" }` (no temperature/top_p,
+  Step 5); `setTracingDisabled(true)` runs at
+  module level. `connect()` opens the three servers in parallel; `close()` is
+  idempotent and never throws. No `run()` call and no knowledge/database import
+  in this file.
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+
+## Chatbot step 5 — POST /api/chat (`docs/e.txt`)
+
+The streaming endpoint behind the (still stubbed) chat UI. No UI changes.
+
+- **Helpers:** `src/lib/chat/ip.ts` (`server-only`) — `getClientIp()` reads the
+  first `x-forwarded-for` entry, then `x-real-ip`, then `"unknown"`;
+  `hashIp()` is HMAC-SHA256 (`CHAT_IP_HASH_SECRET`) hex and throws when the
+  secret is missing. `src/lib/chat/sessions.ts` (`server-only`) is the only file
+  that touches `chat_sessions` / `chat_messages` / `check_chat_rate_limit`:
+  `checkRateLimit(ipHash)` (20 / 600s, throws on RPC error), `getOrCreateSession`
+  (a supplied id is used only when its stored `ip_hash` matches; otherwise a new
+  session is created silently), `loadHistory` (last 20 messages, oldest first)
+  and `saveMessage` (insert + explicit count head + `last_message_at`/`message_count`
+  update). Roles are only `user` / `assistant`. `knowledge.ts` and `agents.ts`
+  never import it.
+- **Route:** `src/app/api/chat/route.ts` — POST only (others 405), header comment,
+  `maxDuration = 60` (accepted by this Next config). Checks before any model
+  call, in order: same-origin when an `Origin` header is present (403);
+  `application/json` (415); body text ≤ 4 KB (413); JSON parse (400); zod
+  `{ message: trimmed 1–500, sessionId?: uuid }` (400 `invalid_request`,
+  unknown fields ignored); HMAC the IP; rate limit (429 +
+  `Retry-After`/`retryAfterSeconds`, still before the stream); session +
+  history + save the user message. Then `createChatRuntime` →
+  `connect()` → `run(router, input, { stream: true, maxTurns: 6, signal })`,
+  with `runtime.close()` in `finally`.
+- **SSE:** `text/event-stream; charset=utf-8`, `no-cache, no-transform`,
+  `keep-alive`, `X-Accel-Buffering: no`. Frames are `data: <json>` with
+  `session` first, then `delta`, then `done`; `error` codes `server_error` /
+  `empty`; `: ping` every 15s (timer cleared in `finally`). Only
+  `output_text_delta` raw events are used. Router text is buffered and discarded
+  on handoff; specialist text streams immediately; if the router is still the
+  last agent its buffer is flushed at the end. Non-empty text is saved with the
+  final agent name before `done`; aborted clients and empty replies are not
+  saved. Errors log only the error name/message (≤200 chars) and return generic
+  JSON/SSE errors — never env values, headers, tokens or message text.
+- **Config:** the existing `outputFileTracingIncludes["/api/chat"]` matches the
+  real route and carries the skills folder.
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+
+## Chatbot step 7 — server voice (`docs/g.txt`)
+
+Spoken replies use OpenAI text-to-speech sentence by sentence, with the browser
+voice as the fallback. The chat design and the Mic dictation are unchanged.
+
+- **Route:** `src/app/api/tts/route.ts` — POST only (others 405), `maxDuration = 30`.
+  Checks before OpenAI, in order: same-origin (403); `application/json` (415);
+  body ≤ 2 KB (413); JSON parse (400); zod `{ text: trimmed 1–300 }` (400);
+  HMAC the IP; rate limit. The separate budget uses the chat RPC through
+  `checkRateLimitWithKey` with the key `${ipHash}:tts`, 60 requests / 600 s
+  (429 + `Retry-After`). RPC failure fails closed (500). Missing
+  `OPENAI_API_KEY` / `OPENAI_TTS_MODEL` returns 503; upstream failures return
+  generic 502. Audio is `audio/mpeg` with `Cache-Control: no-store`.
+- **Config:** `src/lib/chat/tts-config.ts` (server-only) — voice `coral`,
+  speed `0.95`, instructions. The model is read from
+  `process.env.OPENAI_TTS_MODEL` at call time; `instructions` is only sent when
+  the model starts with `gpt-4o-mini-tts`. The key never reaches the client and
+  the spoken text is never logged or stored.
+- **Client engine:** `src/lib/chat/speech-player.ts` — a streaming sentence
+  splitter (protects `Next.js`, `3.0`, URLs/emails and abbreviations), speech
+  cleaning (emojis, markdown, URLs dropped, emails spoken as
+  "name at gmail dot com"), and a queue with at most two `/api/tts` requests in
+  flight. One reused `HTMLAudioElement` plays strictly in order and prefetches
+  the next sentence; `unlock()` primes it inside the user tap (iOS/Android).
+  Failures/`play()` rejection fall back to the browser voice for that sentence;
+  two consecutive server failures switch the rest of the answer. `stop()`
+  pauses, clears the queue, aborts fetches and revokes every object URL.
+  Callbacks `onStart`/`onEnd` drive the ChatLogo speaking state.
+- **Wiring:** `ChatDrawer` owns one player. Voice mode streams `/api/chat`
+  deltas into it (no word animation) and returns to idle when the queue ends.
+  Text chat auto-speaks a settled answer when Sound is on; the speaker button
+  speaks that message with the same player and stops on a second press. Sound
+  off, New chat, closing the drawer, route change, unmount, leaving voice mode,
+  a new question and the stop control all call `stop()`. Opening voice mode
+  turns voice replies on. `useSpeechOutputSupported()` keeps the sound controls
+  visible when audio playback works without browser synthesis.
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+
+## Chatbot step 7c — live agent steps (`docs/fix.txt`)
+
+The thinking area now shows what the agents are doing. The answer, its text,
+the word-by-word animation, voice mode and every validation/rate-limit/session
+path are unchanged.
+
+- **Types:** `src/lib/chat/status-events.ts` (client-safe) — `ChatAgentName`,
+  `ChatStatusTopic` and the `ChatStatus` union (`routing` / `handoff` /
+  `lookup` / `writing`). The SSE frame is `{ type: "status", ...ChatStatus }`.
+- **Server:** `src/app/api/chat/route.ts` only gained the status `send()` calls.
+  It sends `routing` right after `session`; one `handoff` when the router hands
+  to a specialist (deduplicated across `agent_updated_stream_event` and
+  `handoff_occurred`); one `lookup` per `tool_called`, mapping the tool name via
+  `TOOL_TOPICS` built from `tool-names.ts` (`get_projects` → projects,
+  `get_project_detail` → project_detail, `get_cv` → cv, `get_about` → about,
+  `get_public_contact` → contact, `get_chatbot_knowledge` → notes; unknown names
+  send nothing); and `writing` on `tool_output` for the specialist. Only the
+  enum values leave the server — never tool names/args/results, prompts or model
+  text. Status events are not saved, logged or counted; `session`, `delta`,
+  `done`, `error` and the pings are untouched.
+- **Client:** `chat-client.ts` parses `status` defensively (unknown
+  phases/agents/topics are dropped) and calls the optional `onStatus`.
+  `ChatDrawer` collects the statuses on the in-memory `ChatStreamState` and on
+  the final `ChatMessage.steps` (never persisted, never copied — the copy button
+  still copies only `message.text`). Voice mode (`collect`) ignores them.
+- **UI:** `src/components/chat/ThinkingSteps.tsx` — steps appear one at a time
+  (each at least `askAiMotion.steps.minDwell`), active row full-strength with an
+  accent dot that pulses, done rows muted; the handoff row uses an arrow. When
+  the first answer word is released the list becomes a quiet one-line summary
+  (`Router → Work agent · 1 handoff` / `Router · answered directly`) above the
+  answer; the `aria-expanded` button toggles the full list. The live list is
+  keyed by the stream id so a new answer starts fresh. Errors/aborts clear the
+  steps; reduced motion uses opacity only. Tokens: `askAiMotion.steps`
+  (`enter` 0.5 s, `translate` 6 px, `minDwell` 700 ms, `stagger` 0.12 s,
+  `collapse` 0.6 s); all copy is in `content.askAi.steps`.
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+
 ## Tuning
 
 - `SPEED` (`Works.tsx`, top of file): horizontal px travelled per 1px of vertical

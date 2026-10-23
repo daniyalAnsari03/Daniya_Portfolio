@@ -60,7 +60,7 @@ export default function AskAiTab() {
         }}
         className="edge-tab pointer-events-auto inline-flex bg-charcoal px-[7px] py-[10px] text-accent-on-dark transition-colors hover:text-accent-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-on-dark focus-visible:ring-inset md:px-[10px] md:py-[14px]"
       >
-        <span className="block whitespace-nowrap leading-none [writing-mode:vertical-rl] rotate-180 text-[9px] font-medium tracking-[0.3em] uppercase md:text-[11px]">
+        <span className="block whitespace-nowrap leading-none [writing-mode:vertical-rl] rotate-180 text-[11px] font-medium tracking-[0.3em] uppercase md:text-[13px]">
           {content.askAi.tabLabel}
         </span>
       </motion.button>

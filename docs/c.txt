@@ -1,0 +1,55 @@
+TASK: Chatbot step 3 — install the Agents SDK packages, check the SDK docs, and build the internal read-only MCP server at /api/mcp (token protected). NO agents, NO /api/chat, NO UI changes yet.
+
+RULES
+- Do NOT run any SQL, supabase command, git push or deploy. Do NOT start servers or browsers (no npm run dev / next start / port checks / curl against a running server).
+- Do NOT read, print, open or edit any .env* file. Never hardcode or log secrets. The route reads process.env.MCP_AUTH_TOKEN only.
+- Allowed new packages: `@openai/agents` and `zod` ONLY. After installing, check whether `@modelcontextprotocol/sdk` is already resolvable (a dependency of @openai/agents or already in node_modules). If an MCP server implementation is needed and it is NOT available without adding a new top-level package, STOP, do not install it, and report exactly what you need and why (package name, version, size, alternative of writing the small JSON-RPC handler by hand).
+- Do NOT change the chat UI, public pages or admin pages. Do NOT change src/lib/chat/knowledge.ts (it is only imported).
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: package.json (Next.js version), src/lib/chat/knowledge.ts, and any middleware / proxy file or route config that could intercept /api/*.
+
+PART A — Install and docs check
+1. npm install @openai/agents zod (zod only if not already present).
+2. Read the installed package docs/types in node_modules (README, d.ts) for @openai/agents and report:
+   a) the MCP client class for Streamable HTTP (expected: MCPServerStreamableHttp), its constructor options (url, auth/headers via requestInit, name, cacheToolsList) and how to connect/close it;
+   b) how to filter tools per agent (tool filter option, allowed tool names);
+   c) how streaming works (run with stream: true, event types for text deltas, how to know which agent produced the text);
+   d) whether a native "skills" feature exists;
+   e) which Node/runtime requirements apply (Node runtime vs Edge).
+
+PART B — MCP route: src/app/api/mcp/route.ts
+- export const runtime = "nodejs"; export const dynamic = "force-dynamic".
+- Stateless Streamable HTTP (no session ids, serverless friendly). Handle POST. GET and DELETE must return 405.
+- Auth BEFORE any parsing or tool code: header `Authorization: Bearer <token>`. Compare with process.env.MCP_AUTH_TOKEN using a constant-time comparison (crypto.timingSafeEqual on equal-length buffers; compare hashes if lengths differ). If MCP_AUTH_TOKEN is missing or empty on the server, ALWAYS return 401 (fail closed). Wrong or missing token: 401 with a generic body, no detail.
+- Tools (all read-only, each with a zod input schema, a clear one-line description, and readOnlyHint annotation if supported):
+  - get_projects (no input)
+  - get_project_detail (input: id_or_name string, max 100 chars)
+  - get_cv (no input)
+  - get_about (no input)
+  - get_public_contact (no input)
+  - get_chatbot_knowledge (no input)
+  Each calls the matching function from src/lib/chat/knowledge.ts and returns JSON text. If a function returns null, return a short text like "No data available" (not an error).
+- NO write tools. NO tool that touches messages, admin_emails, chat logs or anything outside knowledge.ts.
+- Errors: catch everything, return a generic tool error text, never leak stack traces or env values.
+- Add a short header comment: internal, read-only, token protected, used only by the chatbot agents.
+
+PART C — Shared tool metadata (small)
+- Create src/lib/chat/tool-names.ts exporting the six tool names as constants and these groups, which the agents will use in the next step:
+  WORK_TOOLS = [get_projects, get_project_detail]
+  PROFILE_TOOLS = [get_cv, get_about]
+  CONTACT_TOOLS = [get_public_contact]
+  (get_chatbot_knowledge is shared: add it to WORK_TOOLS, PROFILE_TOOLS and CONTACT_TOOLS.)
+  The router gets no tools.
+- The route and the agents must import the names from this file (no string duplicates).
+
+PART D — Interference check (report only)
+- Does any middleware/proxy, page-transition wrapper, robots/sitemap config or security header setting affect /api/mcp? Report; change only if /api/mcp would be blocked or cached, and then explain the change.
+
+FINAL REPORT (in your reply)
+1. Files created/changed and package versions installed (package.json diff).
+2. Whether @modelcontextprotocol/sdk was available without a new top-level install (and if you stopped, what is needed).
+3. The answers to Part A (a) to (e), with the exact class and option names found in the installed package.
+4. Confirm the auth behavior: 401 when the token is missing/wrong/unset, 405 on GET/DELETE, constant-time compare used.
+5. Confirm: only the six read tools exist, all call knowledge.ts, nothing else is imported from the database layer.
+6. Part D findings.
+7. Results of npx tsc --noEmit, npm run lint, npm run build.

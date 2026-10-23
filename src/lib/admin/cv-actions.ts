@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CV_MIGRATION, CV_TAG, isMissingCvTable } from "@/lib/cv";
+import { CHAT_KNOWLEDGE_TAG } from "@/lib/chat/knowledge";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -91,6 +92,7 @@ function missingTableError(error: { code?: string; message?: string }) {
 
 function revalidateCv() {
   revalidateTag(CV_TAG, { expire: 0 });
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
 }
 
 /* -------------------------------- Profile -------------------------------- */

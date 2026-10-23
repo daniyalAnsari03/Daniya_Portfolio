@@ -12,6 +12,7 @@ import {
   type ProjectImage,
 } from "@/lib/projects";
 import { clampCoverAdjust, type CoverAdjust } from "@/lib/cover-adjust";
+import { CHAT_KNOWLEDGE_TAG } from "@/lib/chat/knowledge";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -230,6 +231,7 @@ export async function createProject(
     }
 
     revalidateTag(PROJECTS_TAG, { expire: 0 });
+    revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
     return { ok: true, id: String(data.id) };
   } catch (error) {
     console.error("[projects] unexpected create error:", error);
@@ -296,6 +298,7 @@ export async function updateProject(
     }
 
     revalidateTag(PROJECTS_TAG, { expire: 0 });
+    revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
     return { ok: true };
   } catch (error) {
     console.error("[projects] unexpected update error:", error);
@@ -329,6 +332,7 @@ export async function setProjectVisibility(
   }
 
   revalidateTag(PROJECTS_TAG, { expire: 0 });
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
   return { ok: true };
 }
 
@@ -375,6 +379,7 @@ export async function deleteProject(id: string): Promise<ProjectActionResult> {
     );
 
     revalidateTag(PROJECTS_TAG, { expire: 0 });
+    revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
     return { ok: true };
   } catch (error) {
     console.error("[projects] unexpected delete error:", error);
@@ -416,6 +421,7 @@ export async function reorderProjects(
   }
 
   revalidateTag(PROJECTS_TAG, { expire: 0 });
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
   return { ok: true };
 }
 
@@ -520,6 +526,7 @@ export async function addGalleryImage(
     }
 
     revalidateTag(PROJECTS_TAG, { expire: 0 });
+    revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
     return {
       ok: true,
       image: {
@@ -571,6 +578,7 @@ export async function removeGalleryImage(
     if (path) await removeStoragePaths([path]);
 
     revalidateTag(PROJECTS_TAG, { expire: 0 });
+    revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
     return { ok: true };
   } catch (error) {
     console.error("[projects] unexpected gallery remove error:", error);
@@ -617,5 +625,6 @@ export async function reorderGalleryImages(
   }
 
   revalidateTag(PROJECTS_TAG, { expire: 0 });
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
   return { ok: true };
 }

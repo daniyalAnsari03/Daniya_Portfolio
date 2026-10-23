@@ -69,3 +69,20 @@ export function getSpeechSynthesisSupported(): boolean {
     typeof window.SpeechSynthesisUtterance === "function"
   );
 }
+
+/** `true` when the browser can play an `HTMLAudioElement`. */
+export function getAudioPlaybackSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    typeof window.Audio === "function" ||
+    typeof window.HTMLAudioElement === "function"
+  );
+}
+
+/**
+ * `true` when speech output can work at all. The server voice only needs an
+ * audio element, so it stays available even without browser synthesis.
+ */
+export function getSpeechOutputSupported(): boolean {
+  return getAudioPlaybackSupported() || getSpeechSynthesisSupported();
+}

@@ -1,0 +1,42 @@
+TASK: Chatbot step 2 — add the "Chatbot knowledge" setting, build the server-side knowledge/tools layer, and add cache invalidation hooks. NO chatbot route, NO agents, NO MCP route yet.
+
+RULES
+- Do NOT run any SQL, supabase command, git push or deploy. Do NOT start servers or browsers (no npm run dev / next start / port checks).
+- Do NOT read, print, open or edit any .env* file. Do NOT touch any env values.
+- Do NOT install new packages in this step.
+- Do NOT add new admin sidebar items or new admin pages. Do NOT change any public UI, the chat UI, or the CV/About/Projects/Works designs.
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: src/lib/settings.ts, the admin Settings page and its server action, the existing data loaders for projects, about, cv and public settings, and every admin server action that writes projects, about, cv or settings. Follow the existing patterns (requireAdmin, caching, revalidateTag usage as it is written in this repo, naming, comments). Do not guess column or key names; read them from the migrations and loaders.
+
+PART A — Settings: "Chatbot knowledge"
+1. `settings` is a key-value table (key text, value jsonb). Add a new key `chatbot_knowledge` (plain string). NO migration is needed.
+2. In the admin Settings page add one textarea field "Chatbot knowledge" with helper text: "Extra facts the Ask AI bot may use. Public information only. Do not paste private data." Max 4000 characters (enforce in the UI and in the server action; trim whitespace). Save and load it exactly like the other settings keys, through the existing server action with requireAdmin().
+3. Do not render this value anywhere on public pages.
+
+PART B — Knowledge/tools layer: src/lib/chat/knowledge.ts
+- First line: `import "server-only"`.
+- Export these read-only async functions (plain JSON-serializable return values, no Supabase types leaking out):
+  - getProjects(): list of visible projects in display order: id, name, short description, tech stack, demo link. No image URLs.
+  - getProjectDetail(idOrName): one visible project with the full description, tech stack, demo link. Return null if not found or not visible.
+  - getCv(): the published CV only (profile fields, sections in order, entries in order with title, subtitle, period, description lines). Return null when is_published is false or there is no CV.
+  - getAbout(): intro statement, intro paragraph, location, services (title, description), skill categories with skill names, education (degree, school, year). Only fields that are shown publicly on the About page.
+  - getPublicContact(): public contact email, socials (GitHub, LinkedIn, others) and site name from public settings. Use ONLY the allowlisted settings keys, defined once in a constant CHAT_SETTINGS_KEYS in this file (the public email key, the social link keys, the site name key, and chatbot_knowledge; read the real key names from src/lib/settings.ts).
+  - getChatbotKnowledge(): the `chatbot_knowledge` string (empty string if not set).
+- HARD RULES (code, not comments only):
+  - Explicit column lists in every query. NEVER use select('*').
+  - Never query or import: the `messages` table (contact form), `admin_emails` or any other settings key outside CHAT_SETTINGS_KEYS, chat_sessions, chat_messages, chat_rate_limits, or anything admin-only. When reading settings, filter by `.in('key', CHAT_SETTINGS_KEYS-subset)`; never read all settings rows.
+  - Use the service-role admin client only inside this file, only for these allowlisted reads, and apply the same visibility rules as the public site (visible projects only, CV only when published).
+  - Cap text sizes sensibly (for example trim very long descriptions) so the data stays small for the model.
+- Caching: wrap each reader with unstable_cache (or the caching API this repo already uses) with the tag `chat-knowledge` (export the tag name as a constant CHAT_KNOWLEDGE_TAG from this file or a tiny shared constants file). Keep a long revalidate fallback (for example 1 hour).
+- Add a short header comment explaining: read-only, public data only, allowlist, no select('*'), the bot never sees private data.
+
+PART C — Invalidation hooks
+- In EVERY admin server action that writes projects (create, update, delete, reorder, gallery/image changes, visibility), about (hero cards, intro, services, skills, categories, education), cv (profile, published toggle, sections, entries, reorder) and settings (any save), call revalidateTag for CHAT_KNOWLEDGE_TAG in addition to the existing revalidation. Use the same revalidateTag call style that already exists in this repo (check the Next.js version's signature). Do not remove or change existing revalidation.
+- List every action you touched.
+
+FINAL REPORT (in your reply)
+1. Files created and files changed.
+2. The real settings key names you found and the exact CHAT_SETTINGS_KEYS array.
+3. The list of admin actions that now call revalidateTag(CHAT_KNOWLEDGE_TAG), and any write action you found but did NOT hook (with the reason).
+4. Confirm: no select('*') in knowledge.ts, and no query touches messages, admin_emails or chat_* tables.
+5. Results of npx tsc --noEmit, npm run lint, npm run build.

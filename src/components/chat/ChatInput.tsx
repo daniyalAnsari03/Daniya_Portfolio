@@ -9,6 +9,9 @@ import { ArrowUpIcon, MicrophoneIcon, WaveIcon } from "@/components/icons";
 /** The textarea grows from one line up to four. */
 const MAX_INPUT_HEIGHT = 104;
 
+/** Must match the server's validation (1–500 characters). */
+const MAX_INPUT_LENGTH = 500;
+
 const ICON_BUTTON_CLASS =
   "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-chat-control text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-40";
 
@@ -80,6 +83,7 @@ export default function ChatInput({
           ref={textareaRef}
           value={value}
           rows={1}
+          maxLength={MAX_INPUT_LENGTH}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.shiftKey) return;
@@ -145,6 +149,10 @@ export default function ChatInput({
           </button>
         </div>
       </motion.div>
+
+      <p className="mt-2 px-1 text-center text-[10px] text-chat-muted">
+        {content.askAi.savedNote}
+      </p>
 
       {error ? (
         <p

@@ -59,7 +59,7 @@ export default function ResumeTab() {
         }}
         className="edge-tab pointer-events-auto inline-flex bg-white px-[7px] py-[10px] text-foreground ring-1 ring-charcoal/10 ring-inset transition-colors hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal focus-visible:ring-inset md:px-[10px] md:py-[14px]"
       >
-        <span className="block whitespace-nowrap leading-none [writing-mode:vertical-rl] rotate-180 text-[9px] font-medium tracking-[0.3em] uppercase md:text-[11px]">
+        <span className="block whitespace-nowrap leading-none [writing-mode:vertical-rl] rotate-180 text-[11px] font-medium tracking-[0.3em] uppercase md:text-[13px]">
           {content.resume.tabLabel}
         </span>
       </motion.button>

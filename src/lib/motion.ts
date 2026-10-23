@@ -199,6 +199,43 @@ export const askAiMotion = {
   },
   /** A chat message fades and rises in. */
   message: { duration: 0.45, distance: 12 },
+  /**
+   * The streaming answer: words are released one at a time and each fades in.
+   * One value here retunes the whole reading pace.
+   * - `interval` / `floorInterval`: release pace in milliseconds; the pace
+   *   accelerates smoothly towards the floor when the queue grows past
+   *   `speedUpAt` words (and returns to normal as it shrinks).
+   * - `fade` is the per-word opacity fade (seconds) and `distance` its rise (px).
+   */
+  word: {
+    interval: 130,
+    floorInterval: 55,
+    speedUpAt: 30,
+    fade: 0.9,
+    distance: 10,
+    /** Extra wait after the last word's fade before the answer settles (seconds). */
+    settleGrace: 0.12,
+    /**
+     * Delay before the speak/copy row fades in, measured from the settle
+     * (seconds). With `settleGrace` above this lands ~200ms after the last
+     * word's fade finished.
+     */
+    buttonsDelay: 0.08,
+  },
+  /**
+   * The live "agent steps" shown while the bot is thinking (seconds / px / ms).
+   * Each step fades and rises in, waits at least `minDwell` before the next one
+   * appears, and the whole list collapses into a one-line summary when the
+   * answer starts.
+   */
+  steps: {
+    enter: 0.5,
+    translate: 6,
+    /** Minimum time one step stays visible and highlighted (milliseconds). */
+    minDwell: 700,
+    stagger: 0.12,
+    collapse: 0.6,
+  },
   /** The three typing dots pulse, one after the other. */
   typing: { duration: 1.1, stagger: 0.18 },
   /** The voice orb rings breathe. */

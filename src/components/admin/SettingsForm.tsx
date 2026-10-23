@@ -22,6 +22,9 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
   const [adminEmails, setAdminEmails] = useState<string[]>(
     initial.adminEmails,
   );
+  const [chatbotKnowledge, setChatbotKnowledge] = useState(
+    initial.chatbotKnowledge,
+  );
   const [result, setResult] = useState<SaveSettingsResult | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -40,6 +43,7 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
         contactEmail,
         socials,
         adminEmails,
+        chatbotKnowledge,
       });
       setResult(response);
       if (response.ok) router.refresh();
@@ -78,6 +82,34 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
               placeholder="you@example.com"
             />
           </div>
+        </div>
+      </section>
+
+      <section className={CARD_CLASS}>
+        <h2 className="text-sm font-medium tracking-[0.18em] text-black/40 uppercase">
+          Chatbot
+        </h2>
+        <div className="mt-5">
+          <label htmlFor="chatbot-knowledge" className={LABEL_CLASS}>
+            Chatbot knowledge
+          </label>
+          <textarea
+            id="chatbot-knowledge"
+            value={chatbotKnowledge}
+            onChange={(event) => setChatbotKnowledge(event.target.value)}
+            maxLength={4000}
+            rows={6}
+            className={`${FIELD_CLASS} min-h-32 resize-y`}
+            placeholder="Extra facts the assistant may use…"
+            aria-describedby="chatbot-knowledge-help"
+          />
+          <p id="chatbot-knowledge-help" className="mt-2 text-xs text-black/40">
+            Extra facts the Ask AI bot may use. Public information only. Do not
+            paste private data.
+          </p>
+          <p className="mt-1 text-xs text-black/40">
+            {chatbotKnowledge.length}/4000
+          </p>
         </div>
       </section>
 

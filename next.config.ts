@@ -34,6 +34,11 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   devIndicators: false,
+  outputFileTracingIncludes: {
+    // The agents read their markdown skill files from disk at runtime, so the
+    // future chat route must carry them into the serverless output.
+    "/api/chat": ["./src/lib/chat/skills/**/*"],
+  },
   images: {
     // Only applies to the local static assets in /public (the hero photo and
     // the stock work images) — uploaded files are served unoptimized, so this

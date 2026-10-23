@@ -1,0 +1,54 @@
+TASK: Chatbot step 6 — connect the existing Ask AI chat UI to POST /api/chat: real streaming, the word-by-word slow animation, and error states. The UI design stays exactly as it is. NO backend changes.
+
+RULES
+- Do NOT run SQL, git push, deploy. Do NOT start servers or browsers. Do NOT call /api/chat or any network endpoint from your own tools. Do NOT read or edit .env* files. No new packages.
+- Do NOT change: src/app/api/**, src/lib/chat/knowledge.ts, agents.ts, sessions.ts, skills, migrations, admin pages, the Contact/Resume/project drawers, or the visual design (themes, logo, header, drawer layout, opening screen, input bar layout).
+- Colors/durations/easing come from existing tokens. The word pace and fade values go into the shared motion tokens file (find it; one value changes the whole site's feel). No hardcoded hex.
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: src/lib/chat/chat-client.ts, every chat component under src/components (drawer, messages, input bar, voice mode, ChatLogo), the shared motion tokens file, and src/app/api/chat/route.ts (READ ONLY, to match the exact SSE event format).
+
+SERVER CONTRACT (from route.ts)
+POST /api/chat with JSON { message: string (1-500 chars), sessionId?: uuid }. The client sends ONLY the new message plus the sessionId; it never sends history or roles.
+Responses:
+- 200 text/event-stream. Events `data: <json>\n\n`: {type:"session", sessionId}, {type:"delta", text} (text chunks may split in the middle of a word, e.g. "D","ani","yal"), {type:"done"}, {type:"error", code:"server_error"|"empty"}. Comment lines ": ping" must be ignored.
+- 429 JSON {error:"rate_limited", retryAfterSeconds}, 400 invalid_request, 403, 413, 415, 500.
+
+PART A — chat-client.ts
+- Replace askAssistant(history) with a streaming function, for example streamAssistant({ message, sessionId, signal, onSession, onDelta, onDone, onError }).
+- Parse the SSE stream with fetch + ReadableStream reader + TextDecoder (stream: true), buffering across chunk boundaries and splitting on blank lines. Ignore lines starting with ":". Parse each data line as JSON; ignore unknown event types.
+- Map failures to typed errors: rate_limited (with retryAfterSeconds), network (fetch throws, not an abort), server (error event or 5xx), empty, invalid (400/413). An AbortError (user pressed New chat, closed the drawer, unmounted) is NOT an error: it ends silently.
+- Keep the sessionId in module or component state (memory only, no localStorage). "New chat" clears it and aborts any running request.
+- Remove the old placeholder, but keep exported types only if other files still use them.
+
+PART B — Word queue and animation (the core of this step)
+Pipeline: SSE delta text -> a text buffer -> complete words -> a word queue -> released one word at a time on a timer -> rendered.
+1. Splitting: append each delta to a buffer. Only move COMPLETE words to the queue: a word is complete when followed by whitespace; keep the unfinished tail in the buffer. When "done" arrives, flush the tail as the last word. Preserve structure: "\n\n" becomes a paragraph break token, a single "\n" a line-break token, and a line starting with "- " a list item. Break tokens are released instantly (no delay), they are not words.
+2. Release pace: a base value WORD_INTERVAL_MS (start 70) from the shared motion tokens. Use a timer based on requestAnimationFrame or setTimeout with timestamps so the pace is steady even if the tab lags. If the queue is long (over about 40 words), speed up gently and smoothly (for example scale the interval down to a floor of about 25 ms as the queue grows) so the user never waits long, and return to the normal pace when the queue shrinks. The pace must stay smooth when the server is fast or stalls.
+3. Rendering: each released word is its own span with a stable key (its index in the answer), fading in with opacity 0 -> 1 and translateY of a few px -> 0, using ONLY opacity and transform, duration from a token (start about 450 ms, ease from the existing tokens). Already shown words never re-animate or re-mount. Reduced motion (prefers-reduced-motion): opacity only, no translate.
+4. Markdown while streaming: only simple structure: paragraphs, plain "- " lists, and nothing else (no headings, no bold, no code). Render lists and paragraphs from the break tokens so half-built formatting never jumps. Do not use a markdown library for the streaming view.
+5. Finish: when the stream is done AND the queue is empty, collapse the word spans into plain text (for mobile performance), keeping the same visual result with no layout jump. Then fade in the existing speaker and copy buttons under that answer. Copy must copy the clean plain text of the answer.
+6. Thinking indicator: show the existing thinking logo from the moment the user sends until the FIRST word is released (not until the first delta arrives), then remove it. The header logo breathes only while a reply is pending (until done).
+7. Auto-scroll: keep the chat scrolled to the bottom while words appear, but only until the user scrolls up by hand; if they scroll back near the bottom, resume. Do not fight the user's scroll.
+8. Abort/cleanup: New chat, closing the drawer, route change and unmount abort the request, clear the timers and the queue. Starting a new message while one is streaming is blocked (disable Send, like the thinking state does today). No state updates after unmount.
+9. Performance: one timer for the whole answer (not one per word), will-change only on the currently animating spans, and remove it when they finish.
+
+PART C — Error states (inside the assistant message slot, same style as normal assistant text, no new components or buttons)
+- rate_limited: "You've sent a lot of messages in a short time. Please try again in about N minute(s)." (N from retryAfterSeconds, rounded up, at least 1).
+- network: "Couldn't reach the server. Please check your connection and try again."
+- server/empty: "Something went wrong on my side. Please try again in a moment."
+- invalid: "That message couldn't be sent. Please shorten it and try again."
+If an error happens AFTER some words were shown, keep those words and add the error line below them. If it happens before any word, show only the error text (no word animation). Errors never leave the input disabled: it must be usable again right after.
+
+PART D — Small UI bits
+- The input bar's 500-character limit stays and must match the server.
+- Add a small, quiet line "Conversations are saved" near the input bar (below it or in the empty-state footer), using existing chat text tokens, small size, no icon.
+- Voice mode and the Sound button currently call the old askAssistant. Keep them working with minimal change: voice mode collects the full streamed answer WITHOUT the word animation and then speaks it with the existing speaking path (sentence-by-sentence speaking and the server voice come in the next step; do not build them now). The assistant text in voice mode is not shown, as before.
+- Mic dictation and the opening-screen suggestion rows keep working (a suggestion row sends its text through the same streaming function).
+
+FINAL REPORT (in your reply)
+1. Files created and changed.
+2. The exact motion token names and start values you added (word interval, floor interval, fade duration, translate distance).
+3. How you split words across chunk boundaries (paste the small function) and how the speed-up works.
+4. Confirm: no history/roles are sent; sessionId kept in memory only and cleared by New chat; requests are aborted on New chat, drawer close and unmount; spans collapse to plain text after the answer; reduced motion handled; Voice mode still works with the new function.
+5. Confirm no backend, design token or other drawer was changed.
+6. Results of npx tsc --noEmit, npm run lint, npm run build.

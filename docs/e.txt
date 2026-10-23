@@ -1,0 +1,65 @@
+TASK: Chatbot step 5 — build POST /api/chat (validation, rate limit, session history, SSE streaming, logging) and fix the model settings in agents.ts. NO chat UI changes in this step (the UI is wired in the next step).
+
+RULES
+- Do NOT run any SQL, supabase command, git push or deploy. Do NOT start servers or browsers. Do NOT call the OpenAI API or any network endpoint. Nothing in this step needs a running server.
+- Do NOT read, print, open or edit any .env* file. Never hardcode secrets or a model name. Read env values at call time: OPENAI_API_KEY (used by the SDK), OPENAI_MODEL, MCP_AUTH_TOKEN, CHAT_IP_HASH_SECRET.
+- No new packages. Do NOT change the chat UI, admin, public pages, knowledge.ts, the MCP route or the migrations.
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: src/lib/chat/agents.ts, src/lib/chat/skills/load.ts, the repo's service-role/admin Supabase client helper, supabase/migrations/008_chat.sql, src/lib/chat/chat-client.ts (read only), next.config.ts, and the installed @openai/agents types for run, StreamedRunResult, RunRawModelStreamEvent, RunAgentUpdatedStreamEvent, the input item types (or the user()/assistant() helpers), maxTurns and signal options.
+
+PART A — Fix model settings in src/lib/chat/agents.ts
+- Remove temperature (reasoning models can reject it). Do not set top_p.
+- Set maxTokens to 1200 (reasoning tokens count toward the cap).
+- If the installed ModelSettings types support a reasoning effort option (expected: reasoning: { effort: "low" }), set it to low and tell me the exact field name. If not supported, say so.
+- Do not change anything else in agents.ts except what this step needs (for example exported agent name constants if missing).
+
+PART B — Helpers (server-only, all start with `import "server-only"`)
+1. src/lib/chat/ip.ts
+   - getClientIp(request): first entry of x-forwarded-for, else x-real-ip, else "unknown".
+   - hashIp(ip): HMAC-SHA256 with process.env.CHAT_IP_HASH_SECRET, hex output. If the secret is missing or empty, throw (fail closed). Never log or store the raw IP.
+2. src/lib/chat/sessions.ts (uses the service-role client; this is the ONLY place that touches chat_sessions / chat_messages / the rate-limit function, and knowledge.ts must never import it)
+   - checkRateLimit(ipHash): rpc check_chat_rate_limit with p_ip_hash, p_limit 20, p_window_seconds 600. Return { allowed, remaining, retryAfterSeconds }. If the rpc errors, throw (fail closed).
+   - getOrCreateSession(sessionId | null, ipHash): if sessionId is given, load it and require the stored ip_hash to equal ipHash; if missing or mismatched, silently create a NEW session (never reveal that another session exists). Return { id, isNew }.
+   - loadHistory(sessionId): last 20 messages (10 turns) ordered by created_at, oldest first, as { role, content }.
+   - saveMessage(sessionId, role, content, agentName?): insert into chat_messages, then update the session: last_message_at = now() and message_count = (head count of that session's messages). Explicit column lists, no select('*').
+   - Role is only ever 'user' or 'assistant'.
+
+PART C — Route: src/app/api/chat/route.ts
+- POST only. GET/PUT/PATCH/DELETE return 405.
+- Try `export const maxDuration = 60`. If the build rejects it under this project's Next.js config (as runtime/dynamic did for /api/mcp), remove it and say so in the report.
+- Request checks, in this order, all BEFORE any model call:
+  1. Origin check: if an Origin header is present and its host differs from the request host, return 403.
+  2. Content-Type must be application/json; read the body as text and reject if longer than 4 KB (413); parse JSON (400 on failure).
+  3. Validate with zod: { message: string, trimmed, 1 to 500 characters; sessionId: optional uuid string }. Ignore all other fields. The client can NEVER send roles, history or system text; only the single new user message is accepted. Invalid: 400 with { error: "invalid_request" }.
+  4. Hash the IP, then rate limit. Not allowed: 429 with JSON { error: "rate_limited", retryAfterSeconds } and a Retry-After header. This happens BEFORE the stream starts.
+  5. getOrCreateSession, loadHistory, then saveMessage(user message).
+- Run:
+  - Build the model input from the history (oldest first) plus the new user message (use the SDK's input item shapes or its user()/assistant() helpers; check the installed types).
+  - const runtime = createChatRuntime({ origin: new URL(request.url).origin }); await runtime.connect(); run(runtime.router, input, { stream: true, maxTurns: 6, signal: request.signal }). Always runtime.close() in a finally.
+- Streaming response: ReadableStream, status 200, headers Content-Type "text/event-stream; charset=utf-8", Cache-Control "no-cache, no-transform", Connection "keep-alive", X-Accel-Buffering "no". Events are `data: <json>\n\n`:
+  - { "type": "session", "sessionId": "<uuid>" } first
+  - { "type": "delta", "text": "<chunk>" } for text
+  - { "type": "done" } at the end
+  - { "type": "error", "code": "server_error" | "empty" } on failure
+  - a comment line ": ping\n\n" every 15 seconds as keep-alive (clear the timer in finally).
+- Agent text rules (important):
+  - Track the current agent name: start with the Router; update it on each RunAgentUpdatedStreamEvent.
+  - Text deltas from the Router are BUFFERED, not sent. If the agent changes to a specialist (handoff), DISCARD the buffer. If the run ends and the last agent is still the Router (it refused), send the buffered text as delta events.
+  - Text deltas from a specialist (Work, Profile, Contact) are sent immediately.
+  - Only text from output_text_delta raw events is used. Never send tool call data, handoff data, reasoning or any other event to the client.
+- After the stream ends successfully with non-empty text: saveMessage(sessionId, "assistant", fullText, finalAgentName), then send done. If the client aborted, do not save a partial answer. If the final text is empty, send error code "empty" and do not save.
+- Errors: catch everything; send { type: "error", code: "server_error" } (or a JSON 500 if the stream has not started); log a short server-side console.error with the error name/message only. Never include stack traces, env values, headers, the token or the message text in any response or log.
+- Missing env (OPENAI_MODEL, MCP_AUTH_TOKEN, CHAT_IP_HASH_SECRET): the helpers throw; the route returns the generic server_error. Never say which variable is missing in the response.
+- Add a header comment: public endpoint, rate limited, server holds history, client sends only one text message.
+
+PART D — Config check
+- Confirm the outputFileTracingIncludes entry for "/api/chat" from step 4 matches the real route path and still includes the skills folder. Fix only if wrong.
+
+FINAL REPORT (in your reply)
+1. Files created and changed.
+2. The exact model-settings fields now set in agents.ts (maxTokens, reasoning effort field name or "not supported").
+3. Whether maxDuration was kept or removed.
+4. The ordered list of checks the route does before the stream starts, and confirm the rate limit runs before the stream.
+5. Confirm: the client can send only one text message (no roles/history), the session ip_hash must match, router text is buffered and discarded on handoff, only output text deltas reach the client, nothing sensitive is logged or returned, MCP runtime is always closed in finally.
+6. Confirm: knowledge.ts and agents.ts do not import sessions.ts, and sessions.ts is the only file touching chat_* tables.
+7. Results of npx tsc --noEmit, npm run lint, npm run build.

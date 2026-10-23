@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import {
+  getSpeechOutputSupported,
   getSpeechRecognition,
   getSpeechSynthesisSupported,
   type SpeechRecognitionLike,
@@ -29,8 +30,24 @@ function getSynthesisSnapshot(): boolean {
   return getSpeechSynthesisSupported();
 }
 
+function getOutputSnapshot(): boolean {
+  return getSpeechOutputSupported();
+}
+
 function getFalseSnapshot(): boolean {
   return false;
+}
+
+/**
+ * `true` when speech output can work at all: the server voice needs only an
+ * audio element, so the sound controls stay visible without browser synthesis.
+ */
+export function useSpeechOutputSupported(): boolean {
+  return useSyncExternalStore(
+    subscribeNothing,
+    getOutputSnapshot,
+    getFalseSnapshot,
+  );
 }
 
 /**

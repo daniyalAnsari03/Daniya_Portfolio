@@ -18,9 +18,10 @@ export type PublicSettings = {
   socials: SocialSetting[];
 };
 
-/** Admin-only view: public settings plus the allowlist. */
+/** Admin-only view: public settings plus the allowlist and the bot facts. */
 export type AdminSettings = PublicSettings & {
   adminEmails: string[];
+  chatbotKnowledge: string;
 };
 
 const DEFAULT_SOCIALS: SocialSetting[] = [
@@ -105,6 +106,7 @@ export async function getAdminSettings(): Promise<AdminSettings> {
     contactEmail: content.contact.email,
     socials: DEFAULT_SOCIALS,
     adminEmails: [],
+    chatbotKnowledge: "",
   };
 
   try {
@@ -119,12 +121,17 @@ export async function getAdminSettings(): Promise<AdminSettings> {
       typeof map.get("contact_email") === "string"
         ? (map.get("contact_email") as string).trim()
         : "";
+    const chatbotKnowledge =
+      typeof map.get("chatbot_knowledge") === "string"
+        ? (map.get("chatbot_knowledge") as string).trim()
+        : "";
 
     return {
       siteName: siteName || fallback.siteName,
       contactEmail: contactEmail || fallback.contactEmail,
       socials: parseSocials(map.get("socials")),
       adminEmails: parseAdminEmails(map.get("admin_emails")),
+      chatbotKnowledge,
     };
   } catch {
     return fallback;

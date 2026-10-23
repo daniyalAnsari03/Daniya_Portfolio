@@ -22,6 +22,7 @@ import {
   clampCoverAdjust,
   type CoverAdjust,
 } from "@/lib/cover-adjust";
+import { CHAT_KNOWLEDGE_TAG } from "@/lib/chat/knowledge";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -118,6 +119,7 @@ function revalidateAbout(tags: string[]) {
   for (const tag of tags) {
     revalidateTag(tag, { expire: 0 });
   }
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
   revalidatePath("/about");
 }
 

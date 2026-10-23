@@ -83,10 +83,10 @@ export const content = {
     emptyLabel: "No resume yet.",
   },
 
-  // The right-edge "Ask AI" tab and the chat drawer it opens. UI only — the
-  // reply comes from the stub in src/lib/chat/chat-client.ts, never from a
-  // network call. The wording is deliberately generic: nothing here claims
-  // anything about Daniyal beyond the site itself.
+  // The right-edge "Ask AI" tab and the chat drawer it opens. The reply comes
+  // from POST /api/chat through src/lib/chat/chat-client.ts. The wording is
+  // deliberately generic: nothing here claims anything about Daniyal beyond
+  // the site itself.
   askAi: {
     tabLabel: "Ask AI",
     openLabel: "Open Ask AI",
@@ -113,6 +113,37 @@ export const content = {
     placeholder: "Ask about the work…",
     assistantLabel: "Ask AI",
     thinkingLabel: "Thinking…",
+    // The live "agent steps" shown while the bot is thinking.
+    steps: {
+      routingChip: "Router",
+      routing: "Reading your question",
+      handoff: "Passed to the {agent} agent",
+      agentChip: "{agent} agent",
+      lookup: {
+        projects: "Checking his projects",
+        project_detail: "Opening that project",
+        cv: "Reading his CV",
+        about: "Reading his About details",
+        contact: "Finding his contact details",
+        notes: "Checking extra notes",
+      },
+      writing: "Writing the answer",
+      summaryChain: "{chain} · {count} handoff",
+      summaryChainPlural: "{chain} · {count} handoffs",
+      summaryDirect: "Router · answered directly",
+      showLabel: "Show agent steps",
+      hideLabel: "Hide agent steps",
+    },
+    savedNote: "Conversations are saved",
+    errors: {
+      rateLimited:
+        "You've sent a lot of messages in a short time. Please try again in about {minutes} minute(s).",
+      network:
+        "Couldn't reach the server. Please check your connection and try again.",
+      server: "Something went wrong on my side. Please try again in a moment.",
+      invalid:
+        "That message couldn't be sent. Please shorten it and try again.",
+    },
     heading: {
       line1: "Ask me",
       line2: "anything",

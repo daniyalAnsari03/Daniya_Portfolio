@@ -1,0 +1,47 @@
+TASK: Chatbot step 7 — clear voice replies using OpenAI text-to-speech, spoken sentence by sentence, with the browser voice as fallback. Add POST /api/tts and wire it into the existing voice mode and the Sound/speaker controls. The chat design stays as it is.
+
+RULES
+- Do NOT run SQL, git push, deploy. Do NOT start servers or browsers. Do NOT call OpenAI or any network endpoint from your tools. Do NOT read, print or edit .env* files. No new packages.
+- Never hardcode the TTS model name: read process.env.OPENAI_TTS_MODEL at call time. Never put keys or env values in client code. The browser never sees OPENAI_API_KEY.
+- Do NOT change: /api/chat, /api/mcp, agents, skills, knowledge.ts, migrations, admin, other drawers, themes, logo, header, layout, the word-by-word text animation, the finish/settle logic, the Mic dictation (browser SpeechRecognition stays).
+- Allowed to extend src/lib/chat/sessions.ts ONLY by adding a generic rate-limit helper (see Part A). The rule stays: knowledge.ts and agents.ts never import sessions.ts.
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: src/app/api/chat/route.ts (copy its origin/body/size/IP-hash/rate-limit patterns), src/lib/chat/sessions.ts, src/lib/chat/ip.ts, ChatDrawer.tsx, the voice mode component, the speaker button code, the existing browser speechSynthesis code, ChatLogo states, and motion tokens.
+
+PART A — Server: src/app/api/tts/route.ts (POST only; others 405)
+1. import "server-only"-style server code, Node runtime default (do not add runtime/dynamic exports if the build rejects them; try maxDuration = 30 and remove it if rejected).
+2. Checks in this order, all before calling OpenAI: Origin host must equal request host (403); Content-Type application/json (415); body text max 2 KB (413); parse JSON (400); zod { text: string, trimmed, 1 to 300 chars } (400 invalid_request); hash the IP (reuse ip.ts); rate limit.
+3. Rate limit: reuse the existing check_chat_rate_limit rpc but with a SEPARATE key so it never touches the chat budget: key = `${ipHash}:tts`, limit 60, window 600 seconds. Add a small exported helper in sessions.ts, for example checkRateLimitWithKey(key, limit, windowSeconds), and make the existing checkRateLimit call it (behavior unchanged for chat). On rpc error fail closed (500). Not allowed: 429 JSON {error:"rate_limited", retryAfterSeconds} with Retry-After.
+4. Call OpenAI speech: POST https://api.openai.com/v1/audio/speech with Authorization Bearer process.env.OPENAI_API_KEY, body { model: process.env.OPENAI_TTS_MODEL, input: text, voice: TTS_VOICE, response_format: "mp3", speed: TTS_SPEED }. If the model name starts with "gpt-4o-mini-tts" also send instructions: TTS_INSTRUCTIONS (never send it for tts-1 or tts-1-hd). Use fetch with an AbortSignal combining request.signal and a 20 second timeout.
+5. Constants in ONE small file src/lib/chat/tts-config.ts (server-only values, easy to tune):
+   - TTS_VOICE = "coral"
+   - TTS_SPEED = 0.95
+   - TTS_INSTRUCTIONS = "Speak clearly and distinctly at a calm, slightly slow pace in a warm, friendly tone. The text may be English, or Roman Urdu (Urdu written with English letters), or a mix. Pronounce Urdu words naturally with a Pakistani accent and pronounce every word fully, without swallowing syllables. Keep the same steady voice for every sentence."
+6. Success: return the audio bytes with Content-Type audio/mpeg and Cache-Control "no-store". Errors: generic JSON 502/500 (and 503 if OPENAI_TTS_MODEL or OPENAI_API_KEY is missing) with NO detail about env variables, no OpenAI error bodies, no stack traces. Log only a short error name/status server-side. NEVER log or store the text being spoken. No database writes for TTS.
+7. Header comment: public endpoint, rate limited, text length capped, no logging of content.
+
+PART B — Client speech engine: src/lib/chat/speech-player.ts (client)
+Create a single reusable player object/hook used by voice mode AND the speaker button:
+1. Sentence splitter for streaming: feed it text deltas; it returns COMPLETE sentences as soon as they end (. ! ? and the Urdu-style "?" etc., also paragraph/line breaks and list items count as sentence ends); keep the unfinished tail in a buffer; flush the tail at the end. If a sentence is longer than 280 characters, split it at the last comma or space before 280. Do not split on dots inside abbreviations, decimals, URLs or emails (for example "Next.js", "3.0", "gmail.com").
+2. Speech text cleaning before sending to /api/tts: remove emojis, markdown bullets ("- "), asterisks, backticks and URLs (drop a URL entirely); turn an email address into spoken form (e.g. "name at gmail dot com"); collapse whitespace. Skip empty results.
+3. Queue: sentences are requested from /api/tts in order with at most 2 requests in flight (prefetch the next while the current one plays). Playback is strictly in order, one HTMLAudioElement reused, gapless as far as possible (start the next as soon as the previous "ended"). The FIRST sentence starts playing as soon as its audio is ready; never wait for the full answer.
+4. Mobile unlock: expose unlock() that must be called inside the user's tap (the Wave/voice-mode start tap, the Send tap while voice replies are on, the speaker button tap). It primes the single audio element (play a tiny silent data-URI sound and pause) so later play() calls are allowed on iOS/Android.
+5. Fallback: if a /api/tts request fails (network, 5xx, 429, 503) or audio.play() is rejected, speak THAT sentence with the browser speechSynthesis instead (reuse the existing browser speech code) and continue with the next sentences through the server again; after 2 consecutive server failures switch the rest of the answer to the browser voice. If neither works, fail silently.
+6. Controls: stop() immediately pauses, clears the queue, aborts in-flight requests (AbortController), revokes all object URLs. stop() is called on: New chat, drawer close, route change, unmount, turning Sound off, leaving voice mode, a new question being sent, and the user pressing the existing stop/mute control. Object URLs are always revoked after use.
+7. State callbacks for the UI: onStart (first audio actually playing), onEnd (queue empty and the answer finished), so the ChatLogo shows "speaking" only while audio is really playing, and "thinking" until the first audio plays in voice mode.
+8. Never speak when the document is hidden for long? (keep simple: no extra logic needed.)
+
+PART C — Wire into the UI (minimal changes)
+1. Voice mode (Wave): keep the existing flow (listen -> question -> reply spoken only, text not shown), but now stream the answer from /api/chat and feed every text delta into the sentence splitter as it arrives (no waiting for the full answer, no word animation in voice mode). Call unlock() inside the tap that starts voice mode and when the question is sent. When the whole answer finished and the queue is empty, return to the idle/listening state as the existing flow does.
+2. Text chat with Sound ON: after an answer is complete (settled), speak it with the same player, sentence by sentence (this step does not need to sync with the word animation). The speaker button under an answer speaks that answer's clean text with the same player; pressing it again stops. Sound OFF means no spoken replies in text chat.
+3. Muting/Sound off while in voice mode stops audio and returns to text chat, as the spec says.
+4. Hide Wave/Speaker/Sound controls only if BOTH audio playback and speechSynthesis are unsupported (otherwise they stay visible, because the server voice works without the browser voice).
+5. No new visible UI elements, no new buttons, no layout changes.
+
+FINAL REPORT (in your reply)
+1. Files created and changed.
+2. The ordered checks in /api/tts before OpenAI is called, and the exact rate-limit key/limit/window.
+3. Paste the sentence-splitter function and the speech-text cleaning function (including the email-to-spoken-form rule).
+4. Explain in 5 lines how prefetch and ordered playback work, and how the mobile unlock works.
+5. Confirm: model read from env only; instructions sent only for gpt-4o-mini-tts models; no secret reaches the client; the spoken text is never logged or stored; fallback to browser voice works for 429/5xx/play() rejection; stop() runs on all listed events and revokes object URLs; chat rate limit behavior unchanged.
+6. Results of npx tsc --noEmit, npm run lint, npm run build.

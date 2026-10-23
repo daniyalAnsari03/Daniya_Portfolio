@@ -1,0 +1,58 @@
+TASK: Create ONE new Supabase migration file for the Ask AI chatbot (chat logs + rate limit). Do NOT run it.
+
+RULES
+- Do NOT run any SQL, do NOT run `supabase db push` or any Supabase CLI command, do NOT git push or deploy.
+- Do NOT start servers or browsers. Do NOT change any file other than the new migration file.
+- Read `supabase/migrations/` first. Use the next free number (the latest known is 007_cv.sql, so likely 008) and name it `<number>_chat.sql`. Follow the style, naming and grant pattern of the existing migrations (especially 007_cv.sql).
+
+TABLES (all PRIVATE: RLS enabled, NO policies for anon or authenticated, REVOKE all from anon and authenticated, GRANT all to service_role)
+
+1) chat_sessions
+- id uuid primary key default gen_random_uuid()
+- ip_hash text not null  (hashed IP only, never a raw IP)
+- started_at timestamptz not null default now()
+- last_message_at timestamptz not null default now()
+- message_count integer not null default 0
+- indexes: (last_message_at desc), (ip_hash)
+
+2) chat_messages
+- id uuid primary key default gen_random_uuid()
+- session_id uuid not null references chat_sessions(id) on delete cascade
+- role text not null check (role in ('user','assistant'))
+- content text not null check (char_length(content) <= 8000)
+- agent_name text null
+- created_at timestamptz not null default now()
+- index: (session_id, created_at)
+
+3) chat_rate_limits
+- ip_hash text not null
+- window_start timestamptz not null
+- count integer not null default 0
+- primary key (ip_hash, window_start)
+- index: (window_start)
+
+FUNCTIONS (plpgsql, EXECUTE granted to service_role only; REVOKE execute from public, anon, authenticated; set search_path explicitly)
+
+a) check_chat_rate_limit(p_ip_hash text, p_limit integer default 20, p_window_seconds integer default 600)
+- Fixed window: window_start = to_timestamp(floor(extract(epoch from now()) / p_window_seconds) * p_window_seconds).
+- ONE atomic statement: INSERT ... ON CONFLICT (ip_hash, window_start) DO UPDATE SET count = chat_rate_limits.count + 1 RETURNING count.
+- Return a row/table with: allowed boolean (count <= p_limit), remaining integer (greatest(p_limit - count, 0)), retry_after_seconds integer (seconds until the window ends).
+
+b) purge_old_chats(p_days integer default 90)
+- Delete chat_sessions where last_message_at < now() - make_interval(days => p_days) (messages go with them via cascade).
+- Also delete chat_rate_limits rows older than 1 day.
+- Return the number of deleted sessions.
+- Do NOT schedule it (no pg_cron). Scheduling comes in a later step.
+
+SETTINGS CHECK (report only, change nothing)
+- Look at how the `settings` table is stored (key-value rows or fixed columns) and how anon can read it.
+- Report: (1) key-value or fixed columns, (2) whether anon can select it and which keys/columns, (3) whether `admin_emails` is protected from anon. Do not edit settings in this migration.
+
+VERIFY
+- This is a SQL-only change, so no code verification is needed. Re-read the SQL once for syntax errors, missing semicolons and missing GRANT/REVOKE lines.
+
+FINAL REPORT (in your reply)
+1. The migration file name.
+2. The FULL SQL content of the file, pasted in the reply.
+3. The Settings check answers above.
+4. Anything in the existing migrations' pattern that you had to adapt.

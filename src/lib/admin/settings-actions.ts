@@ -4,14 +4,17 @@ import { revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SETTINGS_TAG, type SocialSetting } from "@/lib/settings";
+import { CHAT_KNOWLEDGE_TAG } from "@/lib/chat/knowledge";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_CHATBOT_KNOWLEDGE_LENGTH = 4000;
 
 export type SettingsInput = {
   siteName: string;
   contactEmail: string;
   socials: SocialSetting[];
   adminEmails: string[];
+  chatbotKnowledge: string;
 };
 
 export type SaveSettingsResult = { ok: true } | { ok: false; error: string };
@@ -32,12 +35,19 @@ export async function saveSettings(
 
   const siteName = String(input?.siteName ?? "").trim();
   const contactEmail = String(input?.contactEmail ?? "").trim();
+  const chatbotKnowledge = String(input?.chatbotKnowledge ?? "").trim();
 
   if (!siteName) {
     return { ok: false, error: "Site name is required." };
   }
   if (!EMAIL_RE.test(contactEmail)) {
     return { ok: false, error: "Enter a valid public contact email." };
+  }
+  if (chatbotKnowledge.length > MAX_CHATBOT_KNOWLEDGE_LENGTH) {
+    return {
+      ok: false,
+      error: `Chatbot knowledge must be ${MAX_CHATBOT_KNOWLEDGE_LENGTH} characters or fewer.`,
+    };
   }
 
   const socials: SocialSetting[] = (Array.isArray(input?.socials)
@@ -87,6 +97,11 @@ export async function saveSettings(
         { key: "contact_email", value: contactEmail, updated_at: updatedAt },
         { key: "socials", value: socials, updated_at: updatedAt },
         { key: "admin_emails", value: adminEmails, updated_at: updatedAt },
+        {
+          key: "chatbot_knowledge",
+          value: chatbotKnowledge,
+          updated_at: updatedAt,
+        },
       ],
       { onConflict: "key" },
     );
@@ -100,5 +115,6 @@ export async function saveSettings(
 
   // `expire: 0` so the next read blocks for fresh data (read-your-own-writes).
   revalidateTag(SETTINGS_TAG, { expire: 0 });
+  revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 });
   return { ok: true };
 }
