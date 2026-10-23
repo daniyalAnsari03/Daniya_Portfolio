@@ -10,13 +10,21 @@
   --accent: #333333; /* accent on light backgrounds */
   --accent-on-dark: #a0a0a0; /* accent on dark (#333333) backgrounds */
   --accent-contrast: #ffffff;
+  --white: #ffffff;
   --radius-reveal: 16px;
   --radius-reveal-md: 24px;
+  --radius-edge-tab: 12px;
+  --radius-edge-tab-mobile: 10px;
 
   /* Single z-index for the fixed chrome (header + nav pill). It sits above
      every page layer (the page transition wrappers sit at z-0, the page
      content at z-10) and below the popup overlays (z-100). */
   --z-chrome: 60;
+
+  /* The popup overlays (contact sheet, project sheet, CV drawer). They sit
+     above the fixed chrome — including the right-edge Resume tab — and are
+     never covered by it. */
+  --z-popup: 100;
 
   /* Viewport height scale.
      `--vh-sm` = the STABLE small viewport height (the browser toolbar is
@@ -36,6 +44,195 @@
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Ask AI chat — theme tokens                                          */
+/*                                                                      */
+/* The chat drawer carries `data-chat-theme` on its own root, so these  */
+/* tokens only ever apply to the drawer — the rest of the site never   */
+/* changes. The three palettes are defined ONCE, here.                  */
+/*                                                                      */
+/* Light  = white surface, near-black text, charcoal accent            */
+/* Dark   = charcoal surface, light-gray text, soft-gray accent        */
+/* Gray   = soft-gray surface, charcoal text, soft-gray accent         */
+/* ------------------------------------------------------------------ */
+[data-chat-theme="light"] {
+  --chat-surface: var(--white);
+  --chat-text: #111111;
+  --chat-muted: #6e6e6e;
+  --chat-accent: #333333;
+  --chat-border: rgba(17, 17, 17, 0.12);
+  --chat-control-bg: #e2e2e2;
+  --chat-control-fg: #333333;
+  --chat-input-bg: #f1f1f1;
+  --chat-user-bubble-bg: #333333;
+  --chat-user-bubble-fg: #e8e8e8;
+  --chat-primary-bg: #333333;
+  --chat-primary-fg: #e8e8e8;
+}
+
+[data-chat-theme="dark"] {
+  --chat-surface: #333333;
+  --chat-text: #e8e8e8;
+  --chat-muted: #a0a0a0;
+  --chat-accent: #a0a0a0;
+  --chat-border: rgba(232, 232, 232, 0.18);
+  --chat-control-bg: #4a4a4a;
+  --chat-control-fg: #e8e8e8;
+  --chat-input-bg: #3d3d3d;
+  --chat-user-bubble-bg: #e8e8e8;
+  --chat-user-bubble-fg: #333333;
+  --chat-primary-bg: #e8e8e8;
+  --chat-primary-fg: #333333;
+}
+
+[data-chat-theme="gray"] {
+  --chat-surface: #e8e8e8;
+  --chat-text: #333333;
+  --chat-muted: #6e6e6e;
+  --chat-accent: #a0a0a0;
+  --chat-border: rgba(51, 51, 51, 0.16);
+  --chat-control-bg: #d2d2d2;
+  --chat-control-fg: #333333;
+  --chat-input-bg: #dcdcdc;
+  --chat-user-bubble-bg: #333333;
+  --chat-user-bubble-fg: #e8e8e8;
+  --chat-primary-bg: #333333;
+  --chat-primary-fg: #e8e8e8;
+}
+
+/* ------------------------------------------------------------------ */
+/* Ask AI chat — starburst logo                                       */
+/*                                                                      */
+/* The logo's durations live here, once. Only `transform` and         */
+/* `opacity` animate; `will-change` is set by the active state only.   */
+/* Under `prefers-reduced-motion: reduce` the rays keep a plain        */
+/* opacity-only pulse and nothing scales or spins.                     */
+/* ------------------------------------------------------------------ */
+:root {
+  --chat-logo-breathe-thinking: 1.2s;
+  --chat-logo-breathe-listening: 1.8s;
+  --chat-logo-breathe-speaking: 0.8s;
+  --chat-logo-breathe-idle: 3s;
+  --chat-logo-spin-thinking: 8s;
+  --chat-logo-spin-speaking: 5s;
+  --chat-logo-ray-delay-step: -0.12s;
+  --chat-logo-fade-reduced: 1.2s;
+  --chat-logo-scale-min: 0.2;
+  --chat-logo-scale-max: 1.15;
+  --chat-logo-scale-min-idle: 0.5;
+  --chat-logo-scale-max-idle: 1;
+  --chat-logo-opacity-min: 0.25;
+  --chat-logo-opacity-min-idle: 0.5;
+  --chat-logo-opacity-min-reduced: 0.4;
+  /* Thinking indicator size: 40px below md, 48px from md up. */
+  --chat-logo-thinking-size: 40px;
+
+  /* Voice-mode orb: the rays alone (110–140px, responsive), with the two
+     hairline rings scaled around them. The drawer is at least 282px wide
+     on the smallest phone, so the outer ring plus its pulse always fits. */
+  --chat-orb-logo-size: clamp(110px, 34vw, 140px);
+  --chat-orb-ring-outer-ratio: 1.68;
+  --chat-orb-ring-inner-ratio: 1.3;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --chat-logo-thinking-size: 48px;
+  }
+}
+
+/* Each ray grows out of its inner end (the bottom of its fill box), so the
+   scale reads as a breath instead of a subtle shrink around the burst centre. */
+.chat-logo-ray {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.chat-logo .spin {
+  transform-box: view-box;
+  transform-origin: 24px 24px;
+}
+
+@keyframes chat-logo-breathe {
+  0%,
+  100% {
+    transform: scaleY(var(--chat-logo-scale-min));
+    opacity: var(--chat-logo-opacity-min);
+  }
+  50% {
+    transform: scaleY(var(--chat-logo-scale-max));
+    opacity: 1;
+  }
+}
+
+@keyframes chat-logo-fade {
+  0%,
+  100% {
+    opacity: var(--chat-logo-opacity-min-reduced);
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes chat-logo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-logo--thinking .chat-logo-ray {
+    animation: chat-logo-breathe var(--chat-logo-breathe-thinking) ease-in-out
+      infinite;
+    animation-delay: calc(var(--i) * var(--chat-logo-ray-delay-step));
+    will-change: transform, opacity;
+  }
+
+  .chat-logo--thinking .spin {
+    animation: chat-logo-spin var(--chat-logo-spin-thinking) linear infinite;
+    will-change: transform;
+  }
+
+  .chat-logo--listening .chat-logo-ray {
+    animation: chat-logo-breathe var(--chat-logo-breathe-listening) ease-in-out
+      infinite;
+    animation-delay: calc(var(--i) * var(--chat-logo-ray-delay-step));
+    will-change: transform, opacity;
+  }
+
+  .chat-logo--idle .chat-logo-ray {
+    --chat-logo-scale-min: var(--chat-logo-scale-min-idle);
+    --chat-logo-scale-max: var(--chat-logo-scale-max-idle);
+    --chat-logo-opacity-min: var(--chat-logo-opacity-min-idle);
+    animation: chat-logo-breathe var(--chat-logo-breathe-idle) ease-in-out
+      infinite;
+    animation-delay: calc(var(--i) * var(--chat-logo-ray-delay-step));
+    will-change: transform, opacity;
+  }
+
+  .chat-logo--speaking .chat-logo-ray {
+    animation: chat-logo-breathe var(--chat-logo-breathe-speaking) ease-in-out
+      infinite;
+    animation-delay: calc(var(--i) * var(--chat-logo-ray-delay-step));
+    will-change: transform, opacity;
+  }
+
+  .chat-logo--speaking .spin {
+    animation: chat-logo-spin var(--chat-logo-spin-speaking) linear infinite;
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-logo--thinking .chat-logo-ray,
+  .chat-logo--listening .chat-logo-ray,
+  .chat-logo--speaking .chat-logo-ray,
+  .chat-logo--idle .chat-logo-ray {
+    animation: chat-logo-fade var(--chat-logo-fade-reduced) ease-in-out infinite;
+  }
+}
+
 /* Map the tokens into Tailwind's theme so they are usable as utilities:
    bg-background, text-foreground, bg-charcoal, bg-accent, text-accent,
    text-accent-on-dark … */
@@ -46,6 +243,21 @@
   --color-accent: var(--accent);
   --color-accent-on-dark: var(--accent-on-dark);
   --color-accent-contrast: var(--accent-contrast);
+  --color-white: var(--white);
+
+  /* Ask AI chat — resolved at runtime from the drawer's data-chat-theme. */
+  --color-chat-surface: var(--chat-surface);
+  --color-chat-text: var(--chat-text);
+  --color-chat-muted: var(--chat-muted);
+  --color-chat-accent: var(--chat-accent);
+  --color-chat-border: var(--chat-border);
+  --color-chat-control: var(--chat-control-bg);
+  --color-chat-control-fg: var(--chat-control-fg);
+  --color-chat-input: var(--chat-input-bg);
+  --color-chat-user-bubble: var(--chat-user-bubble-bg);
+  --color-chat-user-bubble-fg: var(--chat-user-bubble-fg);
+  --color-chat-primary: var(--chat-primary-bg);
+  --color-chat-primary-fg: var(--chat-primary-fg);
 
   --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -81,6 +293,24 @@
 @media (prefers-reduced-motion: reduce) {
   .marquee-track {
     animation-duration: 140s;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Right-edge tabs                                                     */
+/*                                                                     */
+/* Resume + Ask AI are flush to the right edge, so only their left     */
+/* corners are rounded. The radius grows slightly from md up.           */
+/* ------------------------------------------------------------------ */
+.edge-tab {
+  border-top-left-radius: var(--radius-edge-tab-mobile);
+  border-bottom-left-radius: var(--radius-edge-tab-mobile);
+}
+
+@media (min-width: 768px) {
+  .edge-tab {
+    border-top-left-radius: var(--radius-edge-tab);
+    border-bottom-left-radius: var(--radius-edge-tab);
   }
 }
 

@@ -8,6 +8,8 @@ import { content, type NavItem } from "@/lib/content";
 import { EASE, duration, load } from "@/lib/motion";
 import { scrollToSection } from "./SmoothScroll";
 import { useWorksPopup } from "./works/WorksPopupProvider";
+import { useCv } from "./cv/CvProvider";
+import { useContactPopup } from "./contact/ContactPopupProvider";
 import { beginPageTransition, usePendingTransition } from "./PageTransition";
 
 export default function Nav() {
@@ -15,6 +17,9 @@ export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const { popupOpen } = useWorksPopup();
+  const { open: cvOpen } = useCv();
+  const { isOpen: contactOpen } = useContactPopup();
+  const hiddenByPopup = popupOpen || contactOpen || cvOpen;
   // The route a rise-over transition is currently heading to, if any.
   const pending = usePendingTransition();
 
@@ -80,7 +85,7 @@ export default function Nav() {
       className="fixed inset-x-0 bottom-[calc(var(--vh-sm)*0.08+env(safe-area-inset-bottom,0px))] z-[var(--z-chrome)] flex justify-center px-4 lg:bottom-9"
       initial={{ opacity: 0, y: load.nav.from }}
       animate={
-        popupOpen
+        hiddenByPopup
           ? { opacity: 0, y: load.nav.from + 24, pointerEvents: "none" }
           : { opacity: 1, y: 0, pointerEvents: "auto" }
       }
@@ -88,7 +93,7 @@ export default function Nav() {
         duration: reduce ? 0.15 : 0.4,
         ease: load.ease,
       }}
-      style={{ pointerEvents: popupOpen ? "none" : "auto" }}
+      style={{ pointerEvents: hiddenByPopup ? "none" : "auto" }}
     >
       <div className="flex h-[52px] w-[268px] items-center gap-1 rounded-full bg-white p-1 shadow-[0_10px_30px_-10px_rgba(51,51,51,0.2)]">
         {content.nav.map((item) => {

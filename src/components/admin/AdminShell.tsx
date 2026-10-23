@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/admin/homepage", label: "Homepage" },
   { href: "/admin/projects", label: "Projects" },
   { href: "/admin/about", label: "About" },
+  { href: "/admin/cv", label: "CV" },
   { href: "/admin/messages", label: "Messages" },
   { href: "/admin/settings", label: "Settings" },
 ];

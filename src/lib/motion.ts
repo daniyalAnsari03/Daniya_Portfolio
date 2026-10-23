@@ -110,13 +110,46 @@ export const pageMotion = {
 } as const;
 
 /**
+ * Resume / CV tokens (see docs/fix.txt).
+ *
+ * The right-edge "Resume" tab and the CV drawer read every timing from here:
+ * the drawer slides in with the same slow feel as the other popups, the CV
+ * content staggers in behind it and the tab slides in after the page's own
+ * load animation. Only `opacity` and `transform` animate.
+ */
+export const cvMotion = {
+  /** The drawer slides in / out (seconds) — the shared popup feel. */
+  drawer: pageMotion.popup,
+  /** Duration of one CV block inside the drawer (seconds). */
+  item: pageMotion.item,
+  /** Delay between two CV blocks (seconds). */
+  stagger: pageMotion.stagger,
+  /** Short fade (seconds) — the tab hiding and the reduced-motion state. */
+  fade: pageMotion.fade,
+  /** Ease in-out — the site curve. */
+  easeInOut: pageMotion.easeInOut,
+  /** Smooth ease-out — the hero/nav load curve. */
+  easeOut: pageMotion.easeOut,
+  /** The Resume tab slides in from the right, after the page load animation. */
+  tab: {
+    /**
+     * The tab appears once the page's own load sequence (the corner chrome)
+     * has finished — the delay is derived from the shared load tokens.
+     */
+    delay: load.corners.delay + load.corners.duration + 0.1,
+    duration: 1.2,
+    from: 40,
+    ease: EASE_OUT,
+  },
+} as const;
+
+/**
  * About page tokens (see docs/fix.txt). Every /about animation derives its
  * durations and stagger from `pageMotion` — change one value there to retune
  * the whole site. Nothing on /about hardcodes a duration. Only the curves are
  * About-specific (its reveals use a slightly softer ease-out than the site
  * default).
- */
-export const about = {
+ */export const about = {
   /** Page-level reveals: hero lines, section slides, word reveals. */
   pageDuration: pageMotion.pageTransition,
   /** Shared popup feel (contact / project sheets). */
@@ -130,3 +163,57 @@ export const about = {
   /** Ease out — cubic-bezier(0.22, 1, 0.36, 1), same curve as EASE_OUT. */
   easeOut: EASE_OUT,
 };
+
+/**
+ * Ask AI chat tokens (see docs/fix.txt).
+ *
+ * The right-edge "Ask AI" tab and its drawer read every timing from here.
+ * The drawer slides in with the same slow feel as the CV drawer, the chat
+ * content staggers in behind it and the tab slides in just after the Resume
+ * tab. Only `opacity` and `transform` animate.
+ */
+export const askAiMotion = {
+  /** The drawer slides in / out (seconds) — the shared popup feel. */
+  drawer: pageMotion.popup,
+  /** Duration of one item inside the drawer (seconds). */
+  item: pageMotion.item,
+  /** Delay between two staggered items (seconds). */
+  stagger: pageMotion.stagger,
+  /** Short fade (seconds) — the tab hiding and the reduced-motion state. */
+  fade: pageMotion.fade,
+  /** Ease in-out — the site curve. */
+  easeInOut: pageMotion.easeInOut,
+  /** Smooth ease-out — the hero/nav load curve. */
+  easeOut: pageMotion.easeOut,
+  /** The Ask AI tab slides in from the right, just after the Resume tab. */
+  tab: {
+    /**
+     * The tab appears once the page's own load sequence (the corner chrome)
+     * has finished — the delay is derived from the shared load tokens and sits
+     * a little after the Resume tab so the two slide in one after the other.
+     */
+    delay: cvMotion.tab.delay + 0.2,
+    duration: cvMotion.tab.duration,
+    from: cvMotion.tab.from,
+    ease: cvMotion.tab.ease,
+  },
+  /** A chat message fades and rises in. */
+  message: { duration: 0.45, distance: 12 },
+  /** The three typing dots pulse, one after the other. */
+  typing: { duration: 1.1, stagger: 0.18 },
+  /** The voice orb rings breathe. */
+  pulse: { duration: 1.8 },
+  /** The equalizer bars — each bar is a little slower than the one before. */
+  bars: { duration: 1.4, stagger: 0.16 },
+  /** The theme popover fades in under the theme button. */
+  menu: { duration: 0.25 },
+  /**
+   * The entry sequence of the opening screen: the heading first, then the
+   * suggested questions one by one, then the input bar.
+   */
+  entry: {
+    heading: { delay: 0.1 },
+    row: { delay: 0.25, stagger: 0.12 },
+    input: { delay: 0.7 },
+  },
+} as const;

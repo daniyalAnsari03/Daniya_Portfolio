@@ -72,6 +72,75 @@ export const content = {
     { label: "About", target: "about", href: "/about" },
   ] satisfies NavItem[],
 
+  // The right-edge "Resume" tab and the CV drawer it opens. The content
+  // itself comes from the database (the CV tables), never from here.
+  resume: {
+    tabLabel: "Resume",
+    openLabel: "Open resume",
+    closeLabel: "Close resume",
+    title: "Resume",
+    downloadLabel: "Download PDF",
+    emptyLabel: "No resume yet.",
+  },
+
+  // The right-edge "Ask AI" tab and the chat drawer it opens. UI only — the
+  // reply comes from the stub in src/lib/chat/chat-client.ts, never from a
+  // network call. The wording is deliberately generic: nothing here claims
+  // anything about Daniyal beyond the site itself.
+  askAi: {
+    tabLabel: "Ask AI",
+    openLabel: "Open Ask AI",
+    closeLabel: "Close Ask AI",
+    title: "Ask AI",
+    voiceTitle: "Voice",
+    subtitle: "About Daniyal's work only",
+    newChatLabel: "New chat",
+    soundOnLabel: "Voice replies on",
+    soundOffLabel: "Voice replies off",
+    themeLabel: "Theme",
+    themeMenuLabel: "Chat theme",
+    voiceRepliesLabel: "Voice replies",
+    copyLabel: "Copy message",
+    copiedLabel: "Copied",
+    speakLabel: "Read aloud",
+    stopSpeakingLabel: "Stop reading",
+    micLabel: "Dictate",
+    waveLabel: "Voice mode",
+    sendLabel: "Send",
+    keyboardLabel: "Back to text chat",
+    stopLabel: "Stop listening",
+    talkLabel: "Tap to talk",
+    placeholder: "Ask about the work…",
+    assistantLabel: "Ask AI",
+    thinkingLabel: "Thinking…",
+    heading: {
+      line1: "Ask me",
+      line2: "anything",
+      line3: "about Daniyal",
+    },
+    suggestions: [
+      { number: "01", text: "What has he built?" },
+      { number: "02", text: "Which tools does he use?" },
+      { number: "03", text: "How can I contact him?" },
+    ],
+    themes: [
+      { id: "light", label: "Light" },
+      { id: "dark", label: "Dark" },
+      { id: "gray", label: "Soft gray" },
+    ],
+    voiceStatus: {
+      idle: "Tap to talk",
+      listening: "Listening…",
+      thinking: "Thinking…",
+      speaking: "Speaking…",
+    },
+    voiceErrors: {
+      blocked: "Microphone access was blocked",
+      failed: "Voice input stopped unexpectedly",
+      unsupported: "Voice input isn't supported in this browser",
+    },
+  },
+
   social: [
     { label: "GitHub", href: "#", icon: "github" },
     { label: "LinkedIn", href: "#", icon: "linkedin" },

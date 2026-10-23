@@ -16,6 +16,8 @@ const ContactPopup = dynamic(() => import("./ContactPopup"), { ssr: false });
 
 type ContactPopupContextValue = {
   openContact: () => void;
+  /** `true` while the contact sheet is open (the Resume tab hides then). */
+  isOpen: boolean;
 };
 
 const ContactPopupContext = createContext<ContactPopupContextValue | null>(null);
@@ -38,7 +40,7 @@ export default function ContactPopupProvider({
   const [open, setOpen] = useState(false);
   const openContact = useCallback(() => setOpen(true), []);
   const closeContact = useCallback(() => setOpen(false), []);
-  const value = useMemo(() => ({ openContact }), [openContact]);
+  const value = useMemo(() => ({ openContact, isOpen: open }), [openContact, open]);
 
   return (
     <ContactPopupContext.Provider value={value}>

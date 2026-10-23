@@ -775,6 +775,149 @@ reveal. Everything below is invisible on desktop and in the desktop emulator.
   marquee card is `priority`, the rest lazy. Popups use
   `calc(var(--vh-sm)*0.92)` / `max-h-[calc(var(--vh-sm)-60px)]`.
 
+## Resume / CV (`docs/fix.txt`)
+
+A standalone CV: a right-edge **Resume tab** opens a **right-side drawer** with
+the CV, and a **Download PDF** button renders the same content as a PDF. The
+CV is **completely standalone** — it never reads or links the projects, the
+about intro, the skills, the education, the services or the settings.
+
+- **Migration:** `supabase/migrations/007_cv.sql` — `cv_profile` (singleton
+  row `id = 1`: name, headline, summary, email, phone, location, website,
+  github, linkedin, `is_published`), `cv_sections` (`title`, `sort_order`) and
+  `cv_entries` (`section_id` FK `on delete cascade`, `title`, `subtitle`,
+  `period`, `description`, `sort_order`). RLS on with no public policy, the
+  service role gets everything. Run manually in Supabase; the app never runs
+  it and never seeds content.
+- **Data:** `src/lib/cv.ts` (server-only) — `CV_TAG = "cv"`, `CV_MIGRATION`,
+  `getPublishedCv()` (`use cache` + `cacheLife("max")` + `cacheTag`, `null`
+  until something is published), `getAdminCv()` (uncached) and
+  `isMissingCvTable()`. The shapes and the pure helpers
+  (`cvBullets()`, `cvContactItems()`) live in `src/lib/cv-shared.ts`, which is
+  client-safe (no `server-only`).
+- **Admin:** `/admin/cv` (sidebar entry) → `src/components/admin/cv/` —
+  `CvManager` with the tabs Profile and Sections, `ProfileSection` (every
+  profile field + the publish switch), `SectionCard` / `EntryCard` (add, edit,
+  delete, reorder). Every action in `src/lib/admin/cv-actions.ts` calls
+  `requireAdmin()` first, validates the lengths and the URLs, writes with the
+  service role and then revalidates `CV_TAG` (`{ expire: 0 }`).
+- **Public tab:** `src/components/cv/ResumeTab.tsx` — a vertical "Resume" tab
+  flush to the right edge, vertically centred, `z-[var(--z-chrome)]`. It fades
+  out while the contact sheet, the project sheet or the CV drawer is open and
+  while the contact / footer reveal is active. Two motion layers: the outer
+  one owns the immediate show/hide fade, the inner one the delayed entrance
+  (`cvMotion.tab.delay`, derived from the shared load tokens).
+- **Drawer:** `src/components/cv/CvDrawer.tsx` (lazy, `ssr: false`) — slides
+  in from the **right** (`x: "100%" → 0`), full width on a phone, `75vw` on a
+  tablet, `50vw` (min 480px) on a desktop, rounded left corners only, on
+  `z-[var(--z-popup)]`. The header holds the title "Resume", the
+  "Download PDF" pill and the close button; the body is a paper-like light
+  panel (`bg-white`) with the name, the headline, the contact line (only the
+  filled fields), the summary, and every section with its entries and bullet
+  lines. The content staggers in behind the drawer. Escape, the backdrop and
+  the close button close it, the focus is trapped and the scroll is locked
+  (Lenis aware); the focus returns to the tab when it closes.
+- **PDF:** `src/app/cv/download/route.ts` → `src/lib/cv-pdf.tsx`
+  (`@react-pdf/renderer`, built-in Helvetica only, never a fetched font). The
+  document mirrors the drawer (name, headline, contact, summary, sections,
+  entries, bullets) and uses `minPresenceAhead` / `wrap={false}` so a heading
+  never stays alone at the bottom of a page and an entry header is never
+  split. The file is served as `<full-name>-CV.pdf`. The rendered PDF is
+  cached with the CV tag, so it is only regenerated after a CV change.
+- **Motion:** `cvMotion` in `src/lib/motion.ts` — the drawer (1.3s), the item
+  (1.0s), the stagger (0.15s), the fade (0.2s) and the tab entrance. Only
+  `opacity` and `transform` animate; `will-change` is only set while the
+  drawer animates. `prefers-reduced-motion` (or a touch-only device) falls
+  back to plain fades.
+
+## Ask AI chat drawer (`docs/fix.txt`)
+
+A **UI-only** chat drawer: no backend, no API route, no server action, no AI SDK,
+no `fetch`, no new dependency. The reply comes from a local stub.
+
+- **Tabs:** `src/components/EdgeTabs.tsx` is the shared right-edge stack
+  (`pointer-events-none fixed top-1/2 right-0 z-[var(--z-chrome)] flex
+  -translate-y-1/2 flex-col items-end gap-[4px]`). It holds `ResumeTab` (light
+  white rectangle, dark text, hairline inset ring) and `AskAiTab` (dark charcoal
+  rectangle, light text) — both flush to the right edge with `rounded-none` and
+  sized only by their rotated text plus padding (no fixed height/width, no
+  stretch). The Ask AI tab sits directly **under** the Resume tab. The stack is
+  centred as a whole, so the Ask AI tab stays alone in the middle when the CV is
+  unpublished (`ResumeTab` returns `null` without a published CV). It lives in
+  `src/app/(public)/layout.tsx` **outside** `PageTransition`, so a page
+  transition never transforms it.
+- **Provider:** `src/components/chat/ChatProvider.tsx` (`useChat()`) holds the
+  open state and the trigger ref; the drawer is `next/dynamic` (`ssr: false`)
+  and only mounted from the first click, so the chunk is requested on demand.
+  `ChatProvider` wraps `CvProvider` in the public layout.
+- **Drawer (`ChatDrawer.tsx`):** a fixed overlay (`z-[var(--z-popup)]`,
+  `overflow-x-clip`) with a `bg-charcoal/70` backdrop and the panel on the
+  right. Sizing (task 2 supersedes the first size rule): `w-[88%]
+  max-w-[420px] md:w-[70%] md:max-w-[520px] lg:w-[50%] lg:min-w-[480px]
+  lg:max-w-none`, `rounded-l-[18px]`, `h-viewport-sm` (svh). The percentages
+  are relative to the overlay, never a viewport unit, so the drawer can never
+  exceed the screen; a dimmed strip of the page always stays visible. The
+  closed state is fully off-screen (`x: "100%"` + `transitionEnd.visibility:
+  "hidden"`). Escape / backdrop / the X close it, the scroll is locked
+  (`lockScroll`/`unlockScroll`) and the focus is trapped and returned to the
+  tab. A route change closes it as well — the previous pathname is **compared**
+  (`useRef`), never a "first render" counter, so the double effect React
+  StrictMode runs in development can never close the drawer right after it
+  opened.
+- **Screens:** `ChatOpening` (3-line heading `clamp(24px,8vw,46px)` + three
+  numbered suggestion rows), `ChatConversation` (bubbles ≤85% wide, speaker +
+  copy buttons, starburst thinking indicator under the "Ask AI" label,
+  auto-scroll) and `VoiceMode` (orb with two rings and the starburst inside,
+  status, transcript, keyboard/mic/speaker controls). `ChatInput` is an
+  auto-growing textarea (max 104px), Enter sends.
+- **Logo (`src/components/chat/ChatLogo.tsx`):** the inline 12-ray starburst
+  (`viewBox 0 0 48 48`, each ray a 3.2px rounded rect so its fill-box has area;
+  lengths `17,12,16,10,17,13,15,11, 17,12,16,10` with `0,3,-2,4,-3,2` per-ray
+  jitter). Rays inherit `currentColor`; there is no badge/background circle
+  anywhere. It is used in the header avatar (28px, breathes while a reply is
+  pending) and the thinking indicator (22px, `--chat-text`). The CSS in
+  `globals.css` drives the rays' `scaleY 0.2 → 1.15` + `opacity 0.25 → 1` breath
+  (inner-end origin, `-0.12s` per-ray stagger), the `.spin` rotation in
+  thinking/speaking, and the voice orb, all from the `--chat-logo-*` /
+  `--chat-orb-*` tokens. Reduced motion keeps only the `0.4 → 1` opacity pulse
+  (no scale, no spin); the logo is decorative and the pending state is announced
+  by the visually hidden `role="status"` live region.
+- **Voice orb (`VoiceMode.tsx`):** the rays alone at
+  `clamp(110px, 34vw, 140px)` in `--chat-text` (no disc/fill/shadow), inside two
+  hairline concentric rings (`border` only) scaled from the same token and
+  pulsing with `askAiMotion.pulse`; idle is static. Header + indicator share
+  the same breathing while the assistant is thinking.
+- **Themes:** the chat theme tokens live **once** in `src/app/globals.css`
+  under `[data-chat-theme="light|dark|gray"]` (`--chat-surface`,
+  `--chat-text`, `--chat-muted`, `--chat-accent`, `--chat-border`,
+  `--chat-control-bg`, `--chat-control-fg`, `--chat-input-bg`,
+  `--chat-user-bubble-bg`, `--chat-user-bubble-fg`, `--chat-primary-bg`,
+  `--chat-primary-fg`) and are mapped into the Tailwind theme (`@theme inline`
+  → `bg-chat-surface`, `text-chat-text`, …). Light = white surface, dark =
+  `#333333` surface / `#E8E8E8` text / `#A0A0A0` accent, gray = `#E8E8E8`
+  surface / `#333333` text / `#A0A0A0` accent. `--white: #ffffff` backs
+  `bg-white`. The panel itself carries `data-chat-theme` **and** the opaque
+  `bg-chat-surface`, so the tokens resolve on the same element; the theme change
+  is instant.
+- **State:** `src/components/chat/useChatPreferences.ts` stores the theme and
+  the "voice replies" flag in `localStorage` through a module-level store read
+  with `useSyncExternalStore` (no `setState` in an effect). The conversation
+  itself is **in memory only**, inside the drawer.
+- **Voice:** browser built-ins only (`SpeechRecognition` / `speechSynthesis`,
+  typings in `src/lib/chat/speech.ts`, hooks in `useSpeech.ts`) — no package, no
+  forced locale. The mic/wave controls are hidden when recognition is
+  unsupported, the speaker controls when synthesis is unsupported. The mic
+  never sends on its own outside the voice mode; there it sends the final
+  transcript as a question.
+- **Reply:** `src/lib/chat/chat-client.ts` → `askAssistant()` returns the
+  local `STUB_REPLY` after 900ms. Nothing leaves the browser.
+- **Motion:** `askAiMotion` in `src/lib/motion.ts` — the drawer (1.3s), the
+  item (1.0s), the stagger (0.15s), the fade (0.2s), the tab, the message, the
+  thinking mark, the pulse, the theme menu and the opening entries. Only
+  `opacity` and `transform` animate; `will-change` is only set while the
+  drawer or a logo state animates; `prefers-reduced-motion` falls back to plain
+  fades.
+
 ## Tuning
 
 - `SPEED` (`Works.tsx`, top of file): horizontal px travelled per 1px of vertical
