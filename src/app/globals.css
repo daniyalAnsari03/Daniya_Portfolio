@@ -16,6 +16,13 @@
   --radius-edge-tab: 14px;
   --radius-edge-tab-mobile: 11px;
 
+  /* Scrollbar palette — the thumb follows the site accent and deepens to the
+     foreground on hover. The track is transparent, so it always matches the
+     surface underneath (page, white sheet, dark panel). Dark surfaces override
+     the two thumb tokens below so their scrollbar stays visible. */
+  --scrollbar-thumb: var(--accent);
+  --scrollbar-thumb-hover: var(--foreground);
+
   /* Single z-index for the fixed chrome (header + nav pill). It sits above
      every page layer (the page transition wrappers sit at z-0, the page
      content at z-10) and below the popup overlays (z-100). */
@@ -68,6 +75,9 @@
   --chat-user-bubble-fg: #e8e8e8;
   --chat-primary-bg: #333333;
   --chat-primary-fg: #e8e8e8;
+
+  --scrollbar-thumb: var(--accent);
+  --scrollbar-thumb-hover: var(--foreground);
 }
 
 [data-chat-theme="dark"] {
@@ -83,6 +93,11 @@
   --chat-user-bubble-fg: #333333;
   --chat-primary-bg: #e8e8e8;
   --chat-primary-fg: #333333;
+
+  /* Scrollbar: light thumb on the dark surface, darkening to the soft-gray
+     accent on hover (a near-black thumb would disappear on #333333). */
+  --scrollbar-thumb: var(--background);
+  --scrollbar-thumb-hover: var(--accent-on-dark);
 }
 
 [data-chat-theme="gray"] {
@@ -98,6 +113,9 @@
   --chat-user-bubble-fg: #e8e8e8;
   --chat-primary-bg: #333333;
   --chat-primary-fg: #e8e8e8;
+
+  --scrollbar-thumb: var(--accent);
+  --scrollbar-thumb-hover: var(--foreground);
 }
 
 /* ------------------------------------------------------------------ */
@@ -387,6 +405,65 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Scrollbars                                                          */
+/*                                                                     */
+/* Same palette as the site: charcoal thumb on light surfaces, hover   */
+/* deepens to the near-black foreground. The track is transparent so   */
+/* it matches whatever surface sits underneath. Dark surfaces use the  */
+/* light tokens above instead, so the bar never disappears.            */
+/* Chromium/Edge/Safari use the `::-webkit-scrollbar-*` pseudo-elements */
+/* below. Firefox has no hover state, so it gets the colours (and a    */
+/* thin width) through the standard properties in the @supports block  */
+/* at the end of this section. Keeping the standard properties out of  */
+/* Chromium is required: a non-auto `scrollbar-color` makes it ignore  */
+/* the `::-webkit-scrollbar` size.                                     */
+/* ------------------------------------------------------------------ */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox (no `::-webkit-scrollbar-*` support): thin scrollbar with the
+   same palette. The chat panel re-declares it so its theme tokens resolve
+   on the panel itself. */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  [data-chat-theme] {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Contact reveal (the shared footer screen)                           */
 /*                                                                     */
 /* While the reveal is active the document background switches to the */
@@ -397,6 +474,19 @@ body {
 html[data-footer="true"],
 html[data-footer="true"] body {
   background-color: var(--charcoal);
+}
+
+/* The page scrollbar sits over the dark reveal: switch it to the light
+   palette so it keeps matching the surface it is drawn on. */
+html[data-footer="true"] {
+  --scrollbar-thumb: var(--background);
+  --scrollbar-thumb-hover: var(--accent-on-dark);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  html[data-footer="true"] {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
 
 /* ------------------------------------------------------------------ */

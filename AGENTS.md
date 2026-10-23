@@ -40,6 +40,12 @@ green.
 
 - **Font:** `next/font` → Inter Tight, exposed as `--font-inter-tight`. Tight
   letter-spacing on large headings.
+- **Scrollbars (all scroll containers):** transparent track, charcoal
+  (`--accent`) thumb, hover/active deepen to `--foreground`. The dark chat theme
+  and the footer reveal swap to a light thumb (`--background`) that darkens to
+  `--accent-on-dark` on hover. Firefox gets the static colors via
+  `scrollbar-color` (no hover state); Chromium/Edge/Safari get the hover styling.
+  Tokens: `--scrollbar-thumb`, `--scrollbar-thumb-hover` in `globals.css`.
 
 ## Motion
 
