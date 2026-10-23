@@ -13,8 +13,8 @@
   --white: #ffffff;
   --radius-reveal: 16px;
   --radius-reveal-md: 24px;
-  --radius-edge-tab: 12px;
-  --radius-edge-tab-mobile: 10px;
+  --radius-edge-tab: 14px;
+  --radius-edge-tab-mobile: 11px;
 
   /* Single z-index for the fixed chrome (header + nav pill). It sits above
      every page layer (the page transition wrappers sit at z-0, the page
@@ -305,6 +305,8 @@
 .edge-tab {
   border-top-left-radius: var(--radius-edge-tab-mobile);
   border-bottom-left-radius: var(--radius-edge-tab-mobile);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 @media (min-width: 768px) {
