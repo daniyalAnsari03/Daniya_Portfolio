@@ -1100,7 +1100,23 @@ path are unchanged.
   `collapse` 0.6 s); all copy is in `content.askAi.steps`.
 - **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
 
-## Tuning
+## Public About page — smooth Services on mobile (`docs/fix.txt`)
+
+Animates opacity/transform only, look unchanged. `Services.tsx` stopped using the
+shared `Reveal` / `LineDraw` / `SectionRise` (other About sections still use them,
+untouched) and moved to `src/components/about/ServicesReveal.tsx` (client):
+a `ServicesSection` (same classes/props; desktop keeps the 56px rise, mobile/touch/
+reduced motion fade only so the section never transforms against its columns) and
+`ServicesColumn` — each column is ONE motion block (number/line/title/description),
+the line draws left→right via `scaleX` + `origin-left` (no clip-path), desktop
+timings unchanged (`pageDuration` rise, `itemDuration*0.8` draw, `stagger × index`);
+mobile/touch (<md, `(hover: none)`) uses one fade per column (`duration.fast`,
+row-local stagger `stagger × (index % cols)`, so nothing queues behind off-screen
+columns), reduced motion = opacity only with a static line. No `will-change`, no
+heavy effects; columns fire per-column `whileInView` (`once`, `-10%`). Media
+probes via `useSyncExternalStore` (server snapshot = desktop → hydration safe).
+
+
 
 - `SPEED` (`Works.tsx`, top of file): horizontal px travelled per 1px of vertical
   scroll — raise to shorten the pinned section. `HOLD_VH` is the extra pinned
