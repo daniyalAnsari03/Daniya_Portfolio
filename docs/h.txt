@@ -1,0 +1,46 @@
+TASK: Chatbot step 8 — build the admin "Chats" page (list of sessions, thread view, delete) and write the migration that schedules the 90-day cleanup. Nothing else.
+
+RULES
+- Do NOT run any SQL, supabase command, git push or deploy. Do NOT start servers or browsers. Do NOT call any network endpoint. Do NOT read, print or edit .env* files. No new packages.
+- Do NOT change: /api/chat, /api/tts, /api/mcp, agents, skills, knowledge.ts, the chat UI, public pages, other admin sections' behavior, migrations 001-008.
+- Admin scope is EXACTLY: a sessions list, a thread view, and delete. No search, no export, no filters, no stats cards, no extra fields, no changes to the Dashboard home. Do not show ip_hash anywhere in the UI.
+- Verify ONLY with: npx tsc --noEmit, npm run lint, npm run build.
+- Read first: the admin layout and sidebar component, the admin Messages page and its actions (copy its structure, spacing, list style, delete confirmation, empty state, requireAdmin usage and responsive behavior), src/lib/chat/sessions.ts, supabase/migrations/008_chat.sql and the service-role/admin Supabase client helper.
+
+PART A — Sidebar
+- Add one item "Chats" between "Messages" and "Settings". Final order: Dashboard, Projects, About, CV, Messages, Chats, Settings. Use the same icon style as the other items (pick a fitting existing icon from the icon set already used). Active state works like the others.
+
+PART B — Pages
+1. /admin/chats (server component, guarded exactly like the other admin pages, requireAdmin() on the server, same noindex handling as the rest of /admin):
+   - List chat_sessions newest first by last_message_at, 25 per page with simple Previous/Next paging (page number in the search params, validated, clamped).
+   - Each row shows: relative or formatted last activity time, message count, and a one-line preview of the FIRST user message of that session (truncate to about 90 characters). Fetch previews efficiently for the current page only (one query for the page's sessions, one for their first user messages; no N+1 queries).
+   - Each row links to the thread view. Empty state text: "No conversations yet."
+   - A delete control per row is allowed only if the Messages page has the same pattern; otherwise delete lives in the thread view only. Follow the Messages page.
+2. /admin/chats/[id] thread view (same guard):
+   - Validate the id as a uuid; unknown id -> the repo's standard not-found handling.
+   - Show the transcript oldest first: each message with role label ("Visitor" / "Assistant"), the agent name for assistant messages (agent_name, when present), and the time. Show the session's start time and message count at the top, plus a Back link to the list.
+   - Message content is untrusted visitor text: render it as PLAIN TEXT only (React text nodes with whitespace-pre-wrap and word-break). Never use dangerouslySetInnerHTML, never render markdown or links from it.
+   - A Delete conversation button with the same confirmation pattern as Messages. After deleting, redirect back to /admin/chats.
+   - Long threads: the page must stay usable on mobile (no horizontal overflow, readable bubbles).
+3. Visual design: reuse the admin's existing tokens/classes/components (colors come from the palette tokens, no hardcoded hex). Fully responsive on mobile, tablet and desktop. No animations beyond what the admin already uses.
+
+PART C — Server actions / data access
+- Put data access in src/lib/admin/chat-actions.ts (or follow the repo's naming for admin actions). Every exported function calls requireAdmin() first.
+- Reads: listChatSessions(page), getChatThread(id). Explicit column lists, NO select('*'). Use the service-role client only through the repo's existing admin helper.
+- Write: deleteChatSession(id): validate uuid, delete the chat_sessions row (messages cascade), then revalidatePath for /admin/chats. Do NOT call revalidateTag(CHAT_KNOWLEDGE_TAG) here: chat logs are not bot knowledge.
+- The public bot code (knowledge.ts, agents.ts, /api/mcp) must still NOT import this file or read chat tables. Confirm it.
+
+PART D — Migration: supabase/migrations/009_chat_purge_schedule.sql (write only, do NOT run)
+- Header comment in the style of 007/008, saying: schedules the daily 90-day chat cleanup with pg_cron; run manually in the Supabase SQL editor; if "create extension" is not permitted, enable pg_cron in Supabase Dashboard -> Database -> Extensions first, then re-run this file.
+- `create extension if not exists pg_cron;`
+- Make it idempotent: inside a DO block, if a cron job named 'purge-old-chats' already exists, unschedule it (select from cron.job where jobname = 'purge-old-chats'), then schedule it again.
+- Schedule: daily at 03:00 UTC, job name 'purge-old-chats', command: select public.purge_old_chats(90);
+- Do not change function definitions or grants from 008. No other statements.
+
+FINAL REPORT (in your reply)
+1. Files created and changed.
+2. The sidebar order as it now is.
+3. How the list avoids N+1 queries for first-message previews (describe the two queries).
+4. Confirm: requireAdmin() is the first call in every exported chat admin function and both pages; content is rendered as plain text only; no ip_hash is shown or sent to the browser; no select('*'); no revalidateTag for chats; public bot code does not import the chat admin file.
+5. The FULL SQL of 009_chat_purge_schedule.sql (paste it).
+6. Results of npx tsc --noEmit, npm run lint, npm run build.

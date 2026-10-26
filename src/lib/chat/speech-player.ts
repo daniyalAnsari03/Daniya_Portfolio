@@ -12,9 +12,15 @@ import {
   getAudioPlaybackSupported,
   getSpeechSynthesisSupported,
 } from "@/lib/chat/speech";
+import {
+  findTrailingIncompleteMarkdown,
+  markdownToPlainText,
+} from "@/lib/chat/inline-markdown";
 
 const MAX_SENTENCE_LENGTH = 280;
 const MAX_INFLIGHT_REQUESTS = 2;
+/** An unfinished markdown token may be held back this long (characters). */
+const MAX_SPEECH_HOLD = 240;
 const SILENT_WAV =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
 
@@ -178,7 +184,9 @@ class SentenceSplitter {
             this.buffer.slice(0, MAX_SENTENCE_LENGTH),
           );
 
-          const piece = this.buffer.slice(0, cut).trim();
+          const piece = markdownToPlainText(
+            this.buffer.slice(0, cut).trim(),
+          );
           if (piece) sentences.push(...splitLongSentence(piece));
           this.buffer = this.buffer.slice(cut).trimStart();
           continue;
@@ -189,14 +197,21 @@ class SentenceSplitter {
       const raw = this.buffer.slice(0, boundary.end).trim();
       this.buffer = this.buffer.slice(boundary.next);
 
-      if (raw) sentences.push(...splitLongSentence(raw));
+      // Sentence boundaries are found on the RAW text (safe: a dot inside a
+      // URL or email is protected), then the markdown is converted so the
+      // spoken text is always the plain-text version.
+      if (raw) {
+        const plain = markdownToPlainText(raw);
+        if (plain) sentences.push(...splitLongSentence(plain));
+      }
     }
 
     return sentences;
   }
 }
 
-const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/giu;
+/** Removes bare http(s), www and mailto text — a link label or email remains. */
+const URL_PATTERN = /(?:https?:\/\/|www\.|mailto:)\S+/giu;
 const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const EMOJI_PATTERN =
   /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}]/gu;
@@ -286,6 +301,8 @@ async function requestTts(
 class SpeechPlayerImpl implements SpeechPlayer {
   private callbacks: SpeechPlayerCallbacks;
   private splitter = new SentenceSplitter();
+  /** An unfinished markdown token (`**…` / `[…](…`) held until it completes. */
+  private rawHold = "";
 
   private items: SentenceItem[] = [];
   private results = new Map<number, AudioResult>();
@@ -320,11 +337,28 @@ class SpeechPlayerImpl implements SpeechPlayer {
   push(delta: string): void {
     if (this.stopped || this.ended) this.beginAnswer();
     this.answerDone = false;
-    this.enqueue(this.splitter.push(delta));
+
+    // Never feed half of a markdown token into the sentence splitter: hold an
+    // unfinished `**…` / `[…](…` tail back until it is complete. The 240
+    // character cap is the same safety valve — past it the text is spoken as
+    // plain words and the splitter carries on.
+    let text = this.rawHold + delta;
+    const hold = findTrailingIncompleteMarkdown(text);
+    if (hold >= 0 && text.length - hold <= MAX_SPEECH_HOLD) {
+      this.rawHold = text.slice(hold);
+      text = text.slice(0, hold);
+    } else {
+      this.rawHold = "";
+    }
+
+    this.enqueue(this.splitter.push(text));
   }
 
   flush(): void {
     if (this.stopped) return;
+    const tail = this.rawHold;
+    this.rawHold = "";
+    if (tail) this.enqueue(this.splitter.push(tail));
     this.enqueue(this.splitter.flush());
     this.answerDone = true;
     this.maybeEnd();
@@ -392,6 +426,7 @@ class SpeechPlayerImpl implements SpeechPlayer {
     this.nextToPlay = 0;
     this.inflight = 0;
     this.abort = new AbortController();
+    this.rawHold = "";
   }
 
   private cleanup(): void {
@@ -399,7 +434,6 @@ class SpeechPlayerImpl implements SpeechPlayer {
     this.playToken += 1;
     this.unlockToken += 1;
     this.stopped = true;
-
     this.abort?.abort();
     this.abort = null;
 
@@ -419,6 +453,7 @@ class SpeechPlayerImpl implements SpeechPlayer {
     this.splitter.reset();
     this.items = [];
     this.results = new Map();
+    this.rawHold = "";
     this.nextToFetch = 0;
     this.nextToPlay = 0;
     this.inflight = 0;

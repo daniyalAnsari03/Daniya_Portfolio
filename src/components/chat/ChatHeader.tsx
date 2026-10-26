@@ -54,90 +54,99 @@ export default function ChatHeader({
   const themeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   return (
-    <div className="relative flex items-center justify-between gap-2 px-3 pt-[calc(env(safe-area-inset-top)+14px)] pb-3 sm:px-5 sm:pt-[calc(env(safe-area-inset-top)+18px)]">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-chat-text"
-        >
-          <ChatLogo
-            size={28}
-            animate={pending ? "thinking" : "none"}
-          />
-        </span>
+    /* `relative` on this wrapper is the menu overlay's anchor. The flex row
+       lives in its own child so the theme menu (rendered after it, as an
+       absolute overlay) can never take space in the header flow and shift
+       the buttons. */
+    <div className="relative px-3 pt-[calc(env(safe-area-inset-top)+14px)] pb-3 sm:px-5 sm:pt-[calc(env(safe-area-inset-top)+18px)]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="flex h-8 w-8 shrink-0 items-center justify-center text-chat-text"
+          >
+            <ChatLogo
+              size={28}
+              animate={pending ? "thinking" : "none"}
+            />
+          </span>
 
-        <div className="min-w-0">
-          <h2 className="truncate text-[15px] font-medium tracking-[-0.03em] text-chat-text sm:text-base">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="max-[389px]:hidden truncate text-[11px] text-chat-muted">
-              {subtitle}
-            </p>
+          <div className="min-w-0">
+            <h2 className="truncate text-[15px] font-medium tracking-[-0.03em] text-chat-text sm:text-base">
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="max-[389px]:hidden truncate text-[11px] text-chat-muted">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <button
+            type="button"
+            onClick={onNewChat}
+            aria-label={content.askAi.newChatLabel}
+            title={content.askAi.newChatLabel}
+            className={CONTROL_CLASS}
+          >
+            <EditIcon className="h-4 w-4" />
+          </button>
+
+          {canSpeak ? (
+            <button
+              type="button"
+              onClick={() => onVoiceRepliesChange(!voiceReplies)}
+              aria-label={
+                voiceReplies
+                  ? content.askAi.soundOnLabel
+                  : content.askAi.soundOffLabel
+              }
+              aria-pressed={voiceReplies}
+              title={
+                voiceReplies
+                  ? content.askAi.soundOnLabel
+                  : content.askAi.soundOffLabel
+              }
+              className={CONTROL_CLASS}
+            >
+              {voiceReplies ? (
+                <VolumeIcon className="h-4 w-4" />
+              ) : (
+                <VolumeOffIcon className="h-4 w-4" />
+              )}
+            </button>
           ) : null}
+
+          <button
+            ref={themeButtonRef}
+            type="button"
+            onClick={() => setThemeOpen((open) => !open)}
+            aria-label={content.askAi.themeLabel}
+            aria-expanded={themeOpen}
+            title={content.askAi.themeLabel}
+            className={CONTROL_CLASS}
+          >
+            <PaletteIcon className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={content.askAi.closeLabel}
+            title={content.askAi.closeLabel}
+            className={CONTROL_CLASS}
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-        <button
-          type="button"
-          onClick={onNewChat}
-          aria-label={content.askAi.newChatLabel}
-          title={content.askAi.newChatLabel}
-          className={CONTROL_CLASS}
-        >
-          <EditIcon className="h-4 w-4" />
-        </button>
-
-        {canSpeak ? (
-          <button
-            type="button"
-            onClick={() => onVoiceRepliesChange(!voiceReplies)}
-            aria-label={
-              voiceReplies
-                ? content.askAi.soundOnLabel
-                : content.askAi.soundOffLabel
-            }
-            aria-pressed={voiceReplies}
-            title={
-              voiceReplies
-                ? content.askAi.soundOnLabel
-                : content.askAi.soundOffLabel
-            }
-            className={CONTROL_CLASS}
-          >
-            {voiceReplies ? (
-              <VolumeIcon className="h-4 w-4" />
-            ) : (
-              <VolumeOffIcon className="h-4 w-4" />
-            )}
-          </button>
-        ) : null}
-
-        <button
-          ref={themeButtonRef}
-          type="button"
-          onClick={() => setThemeOpen((open) => !open)}
-          aria-label={content.askAi.themeLabel}
-          aria-expanded={themeOpen}
-          title={content.askAi.themeLabel}
-          className={CONTROL_CLASS}
-        >
-          <PaletteIcon className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={content.askAi.closeLabel}
-          title={content.askAi.closeLabel}
-          className={CONTROL_CLASS}
-        >
-          <XIcon className="h-4 w-4" />
-        </button>
-      </div>
-
-      <ThemeMenuMotion open={themeOpen}>
+      <ThemeMenuMotion
+        open={themeOpen}
+        className="absolute top-full right-3 z-50 mt-2 w-[220px] max-w-[calc(100%-24px)] sm:right-5"
+      >
         <ThemeMenu
           theme={theme}
           onThemeChange={onThemeChange}

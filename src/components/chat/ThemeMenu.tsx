@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
 import { CheckIcon } from "@/components/icons";
@@ -56,6 +56,7 @@ export default function ThemeMenu({
       if (event.key !== "Escape") return;
       event.preventDefault();
       onClose();
+      anchorRef.current?.focus();
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -67,11 +68,18 @@ export default function ThemeMenu({
   }, [anchorRef, onClose]);
 
   return (
+    /* The visual box itself. Positioning + z-index live on the animated
+       wrapper (ThemeMenuMotion, see below), which carries the `absolute`
+       overlay so the containing block never changes during the animation
+       and the whole menu mounts/animates as ONE block. `z-50` keeps the
+       menu above drawer content that creates its own stacking contexts
+       (e.g. the settled assistant rows, which keep a permanent transform
+       and would otherwise paint over the lower rows and eat the hit). */
     <div
       ref={menuRef}
       role="menu"
       aria-label={content.askAi.themeMenuLabel}
-      className="absolute top-full right-3 mt-2 w-[220px] max-w-[calc(100%-24px)] rounded-[14px] bg-chat-surface p-1.5 ring-1 ring-chat-border sm:right-5"
+      className="w-full rounded-[14px] bg-chat-surface p-1.5 ring-1 ring-chat-border"
     >
       <ul className="flex flex-col">
         {content.askAi.themes.map((option) => {
@@ -85,6 +93,7 @@ export default function ThemeMenu({
                 onClick={() => {
                   onThemeChange(option.id as ChatTheme);
                   onClose();
+                  anchorRef.current?.focus();
                 }}
                 className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[13px] text-chat-text transition-colors hover:bg-chat-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
               >
@@ -133,21 +142,35 @@ export default function ThemeMenu({
   );
 }
 
-/** The animated wrapper — only `opacity` and `transform` animate. */
+/** The animated wrapper — only `opacity` and `transform` animate.
+ *
+ * The wrapper IS the overlay: it carries the absolute positioning against
+ * the header (the theme button's wrapper block, which holds `relative`)
+ * and a `z-` level above the drawer content. Mounting it as one element
+ * means the containing block (and so the menu's position) is identical on
+ * the first frame and after the animation — no containing-block switch,
+ * no per-child reveal. Reduced motion: opacity only, no rise.
+ */
 export function ThemeMenuMotion({
   open,
+  className,
   children,
 }: {
   open: boolean;
+  /** Overlay positioning classes, passed in by the header. */
+  className?: string;
   children: ReactNode;
 }) {
+  const reduce = useReducedMotion() ?? false;
+
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
+          className={className}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
+          animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
           transition={{
             duration: askAiMotion.menu.duration,
             ease: askAiMotion.easeOut,

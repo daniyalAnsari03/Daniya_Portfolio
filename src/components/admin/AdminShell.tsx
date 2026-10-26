@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/admin/about", label: "About" },
   { href: "/admin/cv", label: "CV" },
   { href: "/admin/messages", label: "Messages" },
+  { href: "/admin/chats", label: "Chats" },
   { href: "/admin/settings", label: "Settings" },
 ];
 

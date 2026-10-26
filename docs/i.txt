@@ -1,0 +1,19 @@
+TASK: Final read-only security and quality audit of the Ask AI chatbot. DO NOT modify any file. Only report findings.
+
+RULES: No SQL, no supabase, no git push, no deploy. Do not start any server or browser. No network calls. Never read, print or edit .env* files (you may only check that they are listed in .gitignore). No new packages. Verify ONLY with `npx tsc --noEmit`, `npm run lint`, `npm run build`. You may run read-only `git status` and `git diff --stat`.
+
+CHECKS (answer each with PASS/FAIL and file:line evidence for any FAIL):
+1. No hardcoded OpenAI model names anywhere in src (search for "gpt-"). Models come only from OPENAI_MODEL / OPENAI_TTS_MODEL.
+2. No select('*') or select("*") in src/lib/chat, src/app/api/chat, src/app/api/mcp, src/app/api/tts, src/lib/admin/chat-actions.ts.
+3. The chatbot code (knowledge.ts, agents.ts, /api/mcp, /api/chat, /api/tts) never references the tables or keys: messages (contact form), admin_emails, chat_messages/chat_sessions reads inside tools. (/api/chat may write/read chat tables for history only.)
+4. OPENAI_API_KEY, MCP_AUTH_TOKEN, CHAT_IP_HASH_SECRET are never used in any "use client" file and never prefixed NEXT_PUBLIC_.
+5. /api/chat and /api/tts: confirm order of checks (origin, content-type, body size, zod, ip hash, rate limit BEFORE stream/OpenAI call), and that the client can only send role=user text.
+6. Raw IP is never stored or logged anywhere (only the HMAC hash). Spoken/TTS text is never logged. No console.log of user messages or answers.
+7. /api/mcp returns 401 when token missing/wrong/unset, constant-time compare, only 6 read tools, no write tools.
+8. .gitignore contains .env*; `git status` shows no .env* staged or untracked-but-unignored. List changed/untracked files.
+9. Skills: voice.md banned-word list exists; outputFileTracingIncludes for /api/chat includes the skills folder.
+10. Every admin write action (projects, about, cv, settings) calls revalidateTag(CHAT_KNOWLEDGE_TAG, { expire: 0 }).
+11. Mobile/CSS: no horizontal overflow risks in chat components (long words use overflow-wrap:anywhere), 16px font on the input on mobile, no 100vh without svh fallback in chat files.
+12. Run tsc, lint, build and report results.
+
+FINAL REPORT: numbered 1-12 with PASS/FAIL, then a short list of recommended fixes (do not apply them).
