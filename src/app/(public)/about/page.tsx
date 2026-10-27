@@ -13,10 +13,14 @@ import {
   getSkillCategories,
 } from "@/lib/about";
 import { content } from "@/lib/content";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: content.aboutPage.meta.title,
   description: content.aboutPage.meta.description,
+  alternates: {
+    canonical: `${SITE_URL}/about`,
+  },
 };
 
 export default async function AboutPage() {

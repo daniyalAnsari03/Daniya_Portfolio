@@ -12,6 +12,13 @@ export const TOOL_GET_ABOUT = "get_about";
 export const TOOL_GET_PUBLIC_CONTACT = "get_public_contact";
 export const TOOL_GET_CHATBOT_KNOWLEDGE = "get_chatbot_knowledge";
 
+/**
+ * A LOCAL function tool (never exposed through /api/mcp): the Contact agent's
+ * only signal to the UI that the in-chat contact form should appear. It has
+ * no arguments, no data access and is given to no other agent.
+ */
+export const TOOL_SHOW_CONTACT_FORM = "show_contact_form";
+
 export const WORK_TOOLS = [
   TOOL_GET_PROJECTS,
   TOOL_GET_PROJECT_DETAIL,

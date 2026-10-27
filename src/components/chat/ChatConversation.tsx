@@ -6,6 +6,7 @@ import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
 import { CheckIcon, CopyIcon, VolumeIcon, VolumeOffIcon } from "@/components/icons";
 import ChatLogo from "./ChatLogo";
+import ContactFormCard from "./ContactFormCard";
 import StreamedAnswer, { MarkdownText } from "./StreamedAnswer";
 import ThinkingSteps from "./ThinkingSteps";
 import { markdownToPlainText } from "@/lib/chat/inline-markdown";
@@ -333,6 +334,17 @@ export default function ChatConversation({
                   )
                 }
               />
+
+              {/* The Contact agent asked for the in-chat form: it appears
+                  under this answer at the exact moment the actions row does. */}
+              {message.uiForm && !message.error ? (
+                <ContactFormCard
+                  fresh={message.id === settledId}
+                  renderDelay={
+                    message.id === settledId ? askAiMotion.word.buttonsDelay : 0
+                  }
+                />
+              ) : null}
             </motion.div>
           ),
         )}

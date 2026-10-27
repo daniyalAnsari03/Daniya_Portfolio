@@ -135,6 +135,20 @@ export const content = {
       hideLabel: "Hide agent steps",
     },
     savedNote: "Conversations are saved",
+    // The in-chat contact form card (ContactFormCard). It is opened by the
+    // Contact agent's `show_contact_form` signal and submits through the SAME
+    // server-side path the Contact popup uses (src/lib/contact/actions.ts).
+    contactForm: {
+      emailLabel: "Email",
+      emailPlaceholder: "you@example.com",
+      messageLabel: "Message",
+      messagePlaceholder: "Tell me about your project…",
+      submit: "Send",
+      sending: "Sending…",
+      success: "Message sent. Daniyal will see it soon.",
+      networkError:
+        "Couldn't send the message. Please check your connection and try again.",
+    },
     errors: {
       rateLimited:
         "You've sent a lot of messages in a short time. Please try again in about {minutes} minute(s).",

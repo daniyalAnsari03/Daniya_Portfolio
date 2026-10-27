@@ -238,6 +238,18 @@ export const askAiMotion = {
   },
   /** The three typing dots pulse, one after the other. */
   typing: { duration: 1.1, stagger: 0.18 },
+  /**
+   * The in-chat contact form card that appears under a settled assistant
+   * answer: it fades in and rises, one field after another.
+   */
+  contactForm: {
+    /** The card's own fade + rise (seconds). */
+    enter: 0.5,
+    /** How far it rises (px). */
+    distance: 10,
+    /** Delay between consecutive fields fading in (seconds). */
+    fieldStagger: 0.08,
+  },
   /** The voice orb rings breathe. */
   pulse: { duration: 1.8 },
   /** The equalizer bars — each bar is a little slower than the one before. */

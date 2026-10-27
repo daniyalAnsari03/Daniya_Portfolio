@@ -3,8 +3,10 @@
  *
  * The browser sends one new message (plus the session id it already has) to
  * the server route; the server owns the history. The reply arrives as
- * Server-Sent Events (`session`, `status`, `delta`, `done`, `error`) and is
- * turned into typed callbacks here. Nothing about the model lives in the client.
+ * Server-Sent Events (`session`, `status`, `delta`, `done`, `error`, plus the
+ * one `ui` event — `{ "type": "contact_form" }` — when the Contact agent's
+ * local `show_contact_form` tool runs) and is turned into typed callbacks
+ * here. Nothing about the model lives in the client.
  */
 
 import type {
@@ -34,6 +36,8 @@ export type StreamAssistantOptions = {
   onSession: (sessionId: string) => void;
   /** The server's tiny, model-independent "what is happening" events. */
   onStatus?: (status: ChatStatus) => void;
+  /** The one "ui" event: the in-chat contact form should appear. */
+  onUi?: () => void;
   onDelta: (text: string) => void;
   onDone: () => void;
   onError: (error: ChatStreamError) => void;
@@ -50,6 +54,7 @@ type ServerEvent =
       topic?: unknown;
     }
   | { type: "delta"; text?: unknown }
+  | { type: "contact_form" }
   | { type: "done" }
   | { type: "error"; code?: unknown };
 
@@ -223,6 +228,11 @@ export async function streamAssistant(
           if (typeof event.text === "string" && event.text) {
             options.onDelta(event.text);
           }
+          break;
+        }
+        case "contact_form": {
+          // The "ui" event — the Contact agent asked for the in-chat form.
+          options.onUi?.();
           break;
         }
         case "done": {

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import PageTransition from "@/components/PageTransition";
 import SiteHeader from "@/components/SiteHeader";
 import Nav from "@/components/Nav";
@@ -52,6 +53,9 @@ export default async function PublicLayout({
           </ChatProvider>
         </CvProvider>
       </WorksPopupProvider>
+      {/* Vercel Analytics — one mount for the public site, outside
+          PageTransition. Never rendered on /admin. */}
+      <Analytics />
     </ContactPopupProvider>
   );
 }

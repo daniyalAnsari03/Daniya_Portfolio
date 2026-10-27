@@ -5,13 +5,16 @@ import {
   MCPServerStreamableHttp,
   handoff,
   setTracingDisabled,
+  tool,
   type ModelSettings,
 } from "@openai/agents";
+import { z } from "zod";
 
 import { buildInstructions } from "@/lib/chat/skills/load";
 import {
   CONTACT_TOOLS,
   PROFILE_TOOLS,
+  TOOL_SHOW_CONTACT_FORM,
   WORK_TOOLS,
 } from "@/lib/chat/tool-names";
 
@@ -44,6 +47,20 @@ const MODEL_SETTINGS: ModelSettings = {
   maxTokens: 1200,
   reasoning: { effort: "low" },
 };
+
+/**
+ * The Contact agent's one local signal to the chat UI: "the visitor's message
+ * should be taken with the in-chat contact form". It carries no arguments and
+ * reads no data — it is not an MCP tool and only this agent has it.
+ */
+const showContactFormTool = tool({
+  name: TOOL_SHOW_CONTACT_FORM,
+  description:
+    "Show the in-chat contact form so the visitor can send their message from the chat.",
+  parameters: z.object({}),
+  execute: async () =>
+    "The contact form is shown to the visitor below your reply.",
+});
 
 function requireEnv(name: "OPENAI_MODEL" | "MCP_AUTH_TOKEN"): string {
   const value = process.env[name]?.trim();
@@ -131,6 +148,7 @@ export function createChatRuntime({
     model,
     modelSettings: MODEL_SETTINGS,
     mcpServers: [contactServer],
+    tools: [showContactFormTool],
   });
 
   const router = new Agent({

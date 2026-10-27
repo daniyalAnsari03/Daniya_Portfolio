@@ -173,6 +173,8 @@ export default function ChatDrawer({
   const lastReleaseRef = useRef(0);
   const lastWordReleaseRef = useRef(0);
   const releaseTickRef = useRef<() => void>(() => {});
+  /** Whether the current answer's `contact_form` ui event has arrived. */
+  const uiContactFormRef = useRef(false);
 
   const { theme, setTheme, voiceReplies, setVoiceReplies } = useChatPreferences();
 
@@ -245,7 +247,8 @@ export default function ChatDrawer({
     doneRef.current = false;
     lastReleaseRef.current = 0;
     lastWordReleaseRef.current = 0;
-  }, [stopSettle, stopTimer]);
+    uiContactFormRef.current = false;
+  }, [stopFade, stopSettle, stopTimer]);
 
   const applyStream = useCallback((next: ChatStreamState | null) => {
     streamRef.current = next;
@@ -258,6 +261,8 @@ export default function ChatDrawer({
     const released = tokensToText(releasedRef.current);
     const text = released.trim() ? released : fullTextRef.current.trim();
     const steps = stepsRef.current.slice();
+    // Read before resetPipeline() clears the flag below.
+    const uiForm = uiContactFormRef.current;
 
     resetPipeline();
     pendingRef.current = false;
@@ -274,6 +279,8 @@ export default function ChatDrawer({
       text,
       settled: true,
       steps: steps.length > 0 ? steps : undefined,
+      // The Contact agent asked for the in-chat form while this answer streamed.
+      uiForm: uiForm || undefined,
     };
     const next = [...messagesRef.current, assistantMessage];
     messagesRef.current = next;
@@ -605,6 +612,14 @@ export default function ChatDrawer({
           const current = streamRef.current;
           if (!current) return;
           applyStream({ ...current, steps: stepsRef.current.slice(), settling: false });
+        },
+        onUi: () => {
+          if (controller.signal.aborted) return;
+          if (requestId !== requestIdRef.current) return;
+          // Voice mode never shows the form.
+          if (mode === "collect") return;
+
+          uiContactFormRef.current = true;
         },
         onDelta: (delta) => {
           if (controller.signal.aborted) return;

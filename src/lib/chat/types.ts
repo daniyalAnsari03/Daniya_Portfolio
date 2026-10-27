@@ -23,6 +23,12 @@ export type ChatMessage = {
    * never persisted, stored in localStorage or copied.
    */
   steps?: ChatStatus[];
+  /**
+   * The Contact agent asked for the in-chat contact form (`show_contact_form`
+   * signal): the form card renders under this message once it settles. In
+   * memory only — never persisted and never copied.
+   */
+  uiForm?: boolean;
 };
 
 /** The three palettes the chat drawer can be themed with. */

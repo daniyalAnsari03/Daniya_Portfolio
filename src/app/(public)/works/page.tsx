@@ -3,10 +3,14 @@ import Contact from "@/components/Contact";
 import WorksExplorer from "@/components/works/WorksExplorer";
 import { content } from "@/lib/content";
 import { getProjects } from "@/lib/projects";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: content.worksPage.heading,
   description: `Selected projects by ${content.name} — ${content.headline.line1} ${content.headline.line2}.`,
+  alternates: {
+    canonical: `${SITE_URL}/works`,
+  },
 };
 
 export default async function WorksPage() {

@@ -4,7 +4,9 @@
  * - Rate limited per hashed IP (20 requests / 10 minutes).
  * - The server owns the conversation history; the client sends only ONE new
  *   text message (plus, optionally, the session id it received earlier).
- * - Streams Server-Sent Events: session, status, delta, done, error.
+ * - Streams Server-Sent Events: session, status, delta, done, error — plus the
+ *   one `ui` event (`{"type":"contact_form"}`) when the Contact agent calls
+ *   its local `show_contact_form` tool.
  */
 
 import {
@@ -37,6 +39,7 @@ import {
   TOOL_GET_PROJECT_DETAIL,
   TOOL_GET_PROJECTS,
   TOOL_GET_PUBLIC_CONTACT,
+  TOOL_SHOW_CONTACT_FORM,
 } from "@/lib/chat/tool-names";
 
 export const maxDuration = 60;
@@ -54,6 +57,12 @@ type ChatStreamEvent =
   | { type: "session"; sessionId: string }
   | ({ type: "status" } & ChatStatus)
   | { type: "delta"; text: string }
+  /**
+   * The one "ui" event: the ONLY payload is the UI enum (`contact_form`),
+   * sent when the Contact agent calls its local `show_contact_form` tool.
+   * Nothing else travels with it and nothing extra is saved.
+   */
+  | { type: "contact_form" }
   | { type: "done" }
   | { type: "error"; code: "server_error" | "empty" };
 
@@ -244,6 +253,14 @@ function createEventStream(options: {
 
               if (agent && topic) {
                 send({ type: "status", phase: "lookup", agent, topic });
+              }
+
+              // The Contact agent's local signal to the UI: the form appears
+              // under this answer once it settles. Enum only — no tool name,
+              // arguments, results or agent identity leave the server, and
+              // nothing extra is stored.
+              if (toolName === TOOL_SHOW_CONTACT_FORM) {
+                send({ type: "contact_form" });
               }
               continue;
             }
