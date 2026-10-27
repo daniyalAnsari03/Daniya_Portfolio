@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { content } from "@/lib/content";
 import {
+  ArrowLeftIcon,
+  DemoIcon,
   EditIcon,
   PaletteIcon,
   VolumeIcon,
@@ -17,6 +19,12 @@ type ChatHeaderProps = {
   title: string;
   /** Shown under the title on the opening screen only. */
   subtitle?: string;
+  /** A small tag next to the title (e.g. the demo mode's "Demo" badge). */
+  badge?: string;
+  /** When set, a back arrow is shown — e.g. leaving the demo mode. */
+  onBack?: () => void;
+  /** When set, a "Demo" icon button opens the demo setup (normal mode only). */
+  onDemo?: () => void;
   theme: ChatTheme;
   onThemeChange: (theme: ChatTheme) => void;
   voiceReplies: boolean;
@@ -41,6 +49,9 @@ const CONTROL_CLASS =
 export default function ChatHeader({
   title,
   subtitle,
+  badge,
+  onBack,
+  onDemo,
   theme,
   onThemeChange,
   voiceReplies,
@@ -72,9 +83,16 @@ export default function ChatHeader({
           </span>
 
           <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-medium tracking-[-0.03em] text-chat-text sm:text-base">
-              {title}
-            </h2>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-[15px] font-medium tracking-[-0.03em] text-chat-text sm:text-base">
+                {title}
+              </h2>
+              {badge ? (
+                <span className="shrink-0 rounded-full bg-chat-control px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-chat-muted">
+                  {badge}
+                </span>
+              ) : null}
+            </div>
             {subtitle ? (
               <p className="max-[389px]:hidden truncate text-[11px] text-chat-muted">
                 {subtitle}
@@ -84,6 +102,30 @@ export default function ChatHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label={content.askAi.demo.setup.backLabel}
+              title={content.askAi.demo.setup.backLabel}
+              className={CONTROL_CLASS}
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+            </button>
+          ) : null}
+
+          {onDemo ? (
+            <button
+              type="button"
+              onClick={onDemo}
+              aria-label={content.askAi.demo.openingRow}
+              title={content.askAi.demo.openingRow}
+              className={CONTROL_CLASS}
+            >
+              <DemoIcon className="h-4 w-4" />
+            </button>
+          ) : null}
+
           <button
             type="button"
             onClick={onNewChat}

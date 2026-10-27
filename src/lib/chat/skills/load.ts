@@ -5,8 +5,8 @@ import path from "node:path";
 
 /**
  * The skill files are plain markdown so they can be edited without touching
- * code. `voice.md` is shared by every agent; the other four files each belong
- * to one agent.
+ * code. `voice.md` is shared by every agent; the other files each belong to
+ * one agent (`demo.md` is the fixed rule layer for the isolated demo bot).
  */
 export const SKILL_NAMES = [
   "voice",
@@ -14,6 +14,7 @@ export const SKILL_NAMES = [
   "work",
   "profile",
   "contact",
+  "demo",
 ] as const;
 
 export type SkillName = (typeof SKILL_NAMES)[number];

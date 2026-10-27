@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { cubicBezier, motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
 import { CheckIcon, CopyIcon, VolumeIcon, VolumeOffIcon } from "@/components/icons";
@@ -31,6 +31,29 @@ type ChatConversationProps = {
 
 /** The user must be this close to the bottom to be "following" the reply. */
 const STICK_THRESHOLD = 72;
+
+/** Keys that scroll the list by hand — any of them cancels the send scroll. */
+const SCROLL_CANCEL_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+  " ",
+]);
+
+/**
+ * One slow, eased row entrance. The user bubble enters immediately; the
+ * assistant row / thinking indicator enters a beat later (`answerDelay`).
+ */
+function sendEnterTransition(reduce: boolean, delayed = false) {
+  return {
+    duration: reduce ? askAiMotion.fade : askAiMotion.send.bubble.duration,
+    ease: reduce ? askAiMotion.easeOut : askAiMotion.send.ease,
+    delay: reduce || !delayed ? 0 : askAiMotion.send.answerDelay,
+  };
+}
 
 /** The logo is exactly this size; row 2 and the reserved slot always match it. */
 const LOGO_CLASS = "h-10 w-10 sm:h-12 sm:w-12";
@@ -176,9 +199,91 @@ export default function ChatConversation({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const stickRef = useRef(true);
   const lastCountRef = useRef(messages.length);
+  /**
+   * The in-flight custom eased send scroll. While it runs, the streaming
+   * corrections stand down so the two never fight; it is cancelled the moment
+   * the visitor scrolls by hand.
+   */
+  const sendScrollRef = useRef<{ active: boolean; raf: number } | null>(null);
+  /** The first run of the follow effect (the screen mounted on a send). */
+  const firstRunRef = useRef(true);
+
+  const cancelSendScroll = useCallback(() => {
+    const state = sendScrollRef.current;
+    if (!state) return;
+    state.active = false;
+    window.cancelAnimationFrame(state.raf);
+    sendScrollRef.current = null;
+  }, []);
+
+  /**
+   * The custom eased scroll on send (docs/fix.txt): a requestAnimationFrame
+   * tween of `scrollTop` towards the live bottom (`scrollHeight` is re-read
+   * every frame, so content that grows while scrolling is still reached)
+   * with the send token's duration and the site's in-out ease — never the
+   * browser's own `behavior: "smooth"`. Reduced motion jumps instantly.
+   */
+  const startSendScroll = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    cancelSendScroll();
+    if (reduce) {
+      element.scrollTop = element.scrollHeight;
+      return;
+    }
+
+    const duration = askAiMotion.send.scroll * 1000;
+    const progress = cubicBezier(...askAiMotion.send.ease);
+    const startTop = element.scrollTop;
+    const start = performance.now();
+    const state = { active: true, raf: 0 };
+    sendScrollRef.current = state;
+
+    const tick = (now: number) => {
+      if (!state.active) return;
+      const el = scrollRef.current;
+      if (!el) {
+        sendScrollRef.current = null;
+        return;
+      }
+      const target = el.scrollHeight - el.clientHeight;
+      const t = Math.min(1, (now - start) / duration);
+      el.scrollTop = startTop + (target - startTop) * progress(t);
+      if (t < 1) {
+        state.raf = window.requestAnimationFrame(tick);
+      } else {
+        sendScrollRef.current = null;
+      }
+    };
+    state.raf = window.requestAnimationFrame(tick);
+  }, [cancelSendScroll, reduce]);
+
+  // User input wins: wheel, touch, drag or a scroll key cancels the send
+  // scroll immediately — the visitor is never fought.
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const cancel = () => cancelSendScroll();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (SCROLL_CANCEL_KEYS.has(event.key)) cancel();
+    };
+    element.addEventListener("wheel", cancel, { passive: true });
+    element.addEventListener("touchstart", cancel, { passive: true });
+    element.addEventListener("pointerdown", cancel);
+    element.addEventListener("keydown", onKeyDown);
+    return () => {
+      element.removeEventListener("wheel", cancel);
+      element.removeEventListener("touchstart", cancel);
+      element.removeEventListener("pointerdown", cancel);
+      element.removeEventListener("keydown", onKeyDown);
+      cancelSendScroll();
+    };
+  }, [cancelSendScroll]);
 
   // Follow the newest message / the words being released, unless the user
-  // scrolled up by hand. Sending a new question re-sticks the view.
+  // scrolled up by hand. Sending a new question re-sticks the view and starts
+  // the slow eased send scroll; while that scroll runs the streaming
+  // corrections stand down (they resume once it is done or cancelled).
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
@@ -186,16 +291,29 @@ export default function ChatConversation({
     const grew = messages.length > lastCountRef.current;
     lastCountRef.current = messages.length;
     const last = messages[messages.length - 1];
+    // The conversation screen MOUNTS on the first send (opening →
+    // conversation) with the user message already in it — there is no "grew"
+    // event for it, so the first run counts as the send.
+    const mountSend = firstRunRef.current && last?.role === "user";
+    firstRunRef.current = false;
     if (grew && last?.role === "user") stickRef.current = true;
 
     if (!stickRef.current) return;
+
+    const sendScrollActive = sendScrollRef.current !== null;
+
+    if ((grew || mountSend) && last?.role === "user") {
+      startSendScroll();
+      return;
+    }
+    if (sendScrollActive) return;
 
     const streaming = Boolean(stream && stream.tokens.length > 0);
     element.scrollTo({
       top: element.scrollHeight,
       behavior: streaming || reduce ? "auto" : "smooth",
     });
-  }, [messages, pending, stream, reduce]);
+  }, [messages, pending, stream, reduce, startSendScroll]);
 
   const handleScroll = () => {
     const element = scrollRef.current;
@@ -234,12 +352,12 @@ export default function ChatConversation({
           message.role === "user" ? (
             <motion.div
               key={message.id}
-              initial={{ opacity: 0, y: reduce ? 0 : askAiMotion.message.distance }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: askAiMotion.message.duration,
-                ease: askAiMotion.easeOut,
+              initial={{
+                opacity: 0,
+                y: reduce ? 0 : askAiMotion.send.bubble.rise,
               }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={sendEnterTransition(reduce)}
               className="flex justify-end"
             >
               <p className="max-w-[85%] rounded-[16px] rounded-br-[4px] bg-chat-user-bubble px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap text-chat-user-bubble-fg [overflow-wrap:anywhere]">
@@ -351,12 +469,12 @@ export default function ChatConversation({
 
         {stream ? (
           <motion.div
-            initial={{ opacity: 0, y: reduce ? 0 : askAiMotion.message.distance }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: askAiMotion.message.duration,
-              ease: askAiMotion.easeOut,
+            initial={{
+              opacity: 0,
+              y: reduce ? 0 : askAiMotion.send.bubble.rise,
             }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={sendEnterTransition(reduce, true)}
             className={`${ASSISTANT_ROW} text-chat-text`}
           >
             <AssistantRows
@@ -400,7 +518,13 @@ export default function ChatConversation({
                 </>
               }
               actions={
-                !stream.settling && stream.started && !stream.error ? (
+                /* The invisible placeholder stays through the settle —
+                   removing it shrinks the block (~36px) and snaps it back the
+                   moment the settled message mounts, which was the visible
+                   jerk at the end of every answer. It matches the real
+                   speaker/copy row exactly (mt-2 + h-7) in both the main
+                   chat and the demo (where the speaker slot is empty). */
+                stream.started && !stream.error ? (
                   <div
                     aria-hidden="true"
                     className="pointer-events-none mt-2 flex h-7 items-center gap-1.5 opacity-0"
@@ -414,12 +538,12 @@ export default function ChatConversation({
           </motion.div>
         ) : pending ? (
           <motion.div
-            initial={{ opacity: 0, y: reduce ? 0 : askAiMotion.message.distance }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: askAiMotion.message.duration,
-              ease: askAiMotion.easeOut,
+            initial={{
+              opacity: 0,
+              y: reduce ? 0 : askAiMotion.send.bubble.rise,
             }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={sendEnterTransition(reduce, true)}
             className={`${ASSISTANT_ROW} text-chat-text`}
           >
             <AssistantRows

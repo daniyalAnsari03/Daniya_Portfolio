@@ -6,12 +6,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hashIp } from "@/lib/chat/ip";
 import { checkRateLimitWithKey } from "@/lib/chat/sessions";
 import { MESSAGES_TAG } from "@/lib/messages";
+import {
+  DISCOVERY_LIMITS,
+  DISCOVERY_OTHER,
+  DISCOVERY_TIMES,
+  DISCOVERY_TYPES,
+  type DiscoveryPayload,
+  type DiscoveryTime,
+  type DiscoveryType,
+} from "@/lib/contact/discovery";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** The Contact popup's own limit (the shared default). */
 const MESSAGE_MAX = 2000;
-/** The in-chat form's message limit (same fields as the popup: email/message). */
-const CHAT_MESSAGE_MAX = 1000;
 
 /** Basic shared in-memory rate limit: 5 submissions per IP per 10 minutes. */
 const RATE_LIMIT = 5;
@@ -28,6 +35,11 @@ export type ContactFormState =
   | {
       status: "error";
       message: string;
+      /**
+       * The error "family" so a client can pick its own copy for a known
+       * case. Optional — every unknown/blank case still carries `message`.
+       */
+      kind?: "rate-limited" | "invalid";
       fieldErrors?: {
         email?: string;
         message?: string;
@@ -119,7 +131,7 @@ async function persistContactMessage(
     (time) => now - time < RATE_WINDOW_MS,
   );
   if (recent.length >= RATE_LIMIT) {
-    return { status: "error", message: RATE_LIMIT_ERROR };
+    return { status: "error", message: RATE_LIMIT_ERROR, kind: "rate-limited" };
   }
   recent.push(now);
   recentHits.set(ip, recent);
@@ -166,23 +178,139 @@ export async function submitContactMessage(
 }
 
 /**
- * The in-chat contact form's submit path (ContactFormCard.tsx). Shares the
- * popup's validation + honeypot + insert; adds the chat budget
- * (`check_chat_rate_limit`, key `${ipHash}:contact`, 5 per 600 s).
- * Fields: email, message (+ the shared `company` honeypot).
+ * The in-chat "Discovery form" wizard's server-side core.
+ *
+ * The five answers are validated, cleaned and formatted into ONE string that
+ * is stored in the existing `message` column of the `messages` table (one
+ * item per line); the email goes into the existing `email` column exactly
+ * like the popup. Nothing is stored anywhere else: no extra tables, no new
+ * columns, nothing in `chat_messages` and never anything sent to the model.
  */
-export async function submitChatContactMessage(
-  _prev: ContactFormState,
-  formData: FormData,
-): Promise<ContactFormState> {
-  const validated = validateContactSubmission(
-    {
-      email: String(formData.get("email") ?? ""),
-      message: String(formData.get("message") ?? ""),
-      company: String(formData.get("company") ?? ""),
-    },
-    { messageMax: CHAT_MESSAGE_MAX },
+
+/** Removes control characters but keeps line breaks and normal text. */
+function stripControlChars(value: string): string {
+  return String(value).replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+    "",
   );
+}
+
+function validTrimmedLength(value: string, min: number, max: number): boolean {
+  const length = stripControlChars(value).trim().length;
+  return length >= min && length <= max;
+}
+
+/**
+ * The formatted message stored in the `messages.message` column — one item
+ * per line. `Something else` keeps the visitor's own wording on the Type
+ * line. Extra is only ever printed when it was actually provided.
+ */
+function formatDiscoveryMessage(input: {
+  type: DiscoveryType;
+  typeOther: string;
+  business: string;
+  need: string;
+  time: DiscoveryTime;
+  extra: string;
+}): string {
+  const typeLine =
+    input.type === DISCOVERY_OTHER && input.typeOther
+      ? `${input.type} — ${input.typeOther}`
+      : input.type;
+
+  const lines = [
+    `Type: ${typeLine}`,
+    `Business: ${input.business}`,
+    `Need: ${input.need}`,
+    `Time: ${input.time}`,
+  ];
+  if (input.extra) lines.push(`Extra: ${input.extra}`);
+  return lines.join("\n");
+}
+
+/**
+ * Discovery validation. Every unknown value, out-of-range length, bad email
+ * or oversized result is rejected with the same generic invalid state.
+ */
+function validateDiscoverySubmission(
+  payload: DiscoveryPayload,
+):
+  | { status: "ok"; values: ValidatedContactMessage }
+  | { status: "error"; state: ContactFormState } {
+  const invalid: { status: "error"; state: ContactFormState } = {
+    status: "error",
+    state: {
+      status: "error",
+      message: "Please check your answers and try again.",
+      kind: "invalid",
+    },
+  };
+
+  // Honeypot: bots fill hidden fields. Pretend success without storing anything.
+  if (String(payload.company ?? "").trim()) {
+    return { status: "ok", values: { email: "", message: "" } };
+  }
+
+  if (!(DISCOVERY_TYPES as readonly string[]).includes(payload.type)) {
+    return invalid;
+  }
+  if (!(DISCOVERY_TIMES as readonly string[]).includes(payload.time)) {
+    return invalid;
+  }
+
+  const type = payload.type as DiscoveryType;
+  const time = payload.time as DiscoveryTime;
+
+  // The "Something else" wording is required exactly when the choice says so;
+  // any stray value for a fixed choice is rejected.
+  const typeOther = stripControlChars(payload.typeOther ?? "").trim();
+  if (type === DISCOVERY_OTHER) {
+    if (
+      typeOther.length < DISCOVERY_LIMITS.otherMin ||
+      typeOther.length > DISCOVERY_LIMITS.otherMax
+    ) {
+      return invalid;
+    }
+  } else if (typeOther) {
+    return invalid;
+  }
+
+  const business = stripControlChars(payload.business ?? "").trim();
+  const need = stripControlChars(payload.need ?? "").trim();
+  const extra = stripControlChars(payload.extra ?? "").trim();
+  const email = stripControlChars(payload.email ?? "").trim();
+
+  if (!validTrimmedLength(business, DISCOVERY_LIMITS.textMin, DISCOVERY_LIMITS.textMax)) {
+    return invalid;
+  }
+  if (!validTrimmedLength(need, DISCOVERY_LIMITS.textMin, DISCOVERY_LIMITS.textMax)) {
+    return invalid;
+  }
+  if (extra.length > DISCOVERY_LIMITS.extraMax) {
+    return invalid;
+  }
+  if (!EMAIL_RE.test(email)) {
+    return invalid;
+  }
+
+  const formatted = formatDiscoveryMessage({ type, typeOther, business, need, time, extra });
+  if (formatted.length > DISCOVERY_LIMITS.messageMax) {
+    return invalid;
+  }
+
+  return { status: "ok", values: { email, message: formatted } };
+}
+
+/**
+ * The in-chat Discovery form wizard's submit path (ContactFormCard.tsx).
+ * Shares the popup's insert + honeypot + cache revalidation; adds the chat
+ * budget (`check_chat_rate_limit`, key `${ipHash}:contact`, 5 per 600 s).
+ * Form values never go to `chat_messages` and never to the model.
+ */
+export async function submitChatDiscoveryMessage(
+  payload: DiscoveryPayload,
+): Promise<ContactFormState> {
+  const validated = validateDiscoverySubmission(payload);
 
   if (validated.status === "error") return validated.state;
 
@@ -198,7 +326,7 @@ export async function submitChatContactMessage(
     ipHash = hashIp(ipFromHeaders(headerList));
     const budget = await checkRateLimitWithKey(`${ipHash}:contact`, 5, 600);
     if (!budget.allowed) {
-      return { status: "error", message: RATE_LIMIT_ERROR };
+      return { status: "error", message: RATE_LIMIT_ERROR, kind: "rate-limited" };
     }
   } catch (error) {
     console.error(
@@ -208,10 +336,6 @@ export async function submitChatContactMessage(
     return { status: "error", message: GENERIC_ERROR };
   }
 
-  const { values } = validated;
-  // Only the message text is stored — exactly like the Contact popup.
-  return persistContactMessage({
-    email: values.email,
-    message: values.message,
-  });
+  // Only the formatted text is stored — exactly like the Contact popup.
+  return persistContactMessage(validated.values);
 }

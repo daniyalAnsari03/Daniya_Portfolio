@@ -239,16 +239,91 @@ export const askAiMotion = {
   /** The three typing dots pulse, one after the other. */
   typing: { duration: 1.1, stagger: 0.18 },
   /**
-   * The in-chat contact form card that appears under a settled assistant
-   * answer: it fades in and rises, one field after another.
+   * The in-chat Discovery form card that appears under a settled assistant
+   * answer: it fades in and rises. The card entrance reads these tokens.
    */
   contactForm: {
     /** The card's own fade + rise (seconds). */
     enter: 0.5,
     /** How far it rises (px). */
     distance: 10,
-    /** Delay between consecutive fields fading in (seconds). */
-    fieldStagger: 0.08,
+  },
+  /**
+   * The Discovery form wizard: one question visible at a time. The current
+   * step slides out while the next slides in, direction-aware, moving on
+   * opacity + translateX only.
+   */
+  discovery: {
+    /** One step slide (seconds). */
+    step: 0.45,
+    /** How far one step travels horizontally (px). */
+    distance: 32,
+    /** A direction-aware slide reads best on the site's in-out curve. */
+    ease: pageMotion.easeInOut,
+  },
+  /**
+   * The demo mode's setup screen: it slides in / out of the drawer on
+   * opacity + translateX only. Slow and large enough to read like the drawer
+   * itself (never a jump): ~8% of the panel width, the site's in-out curve.
+   */
+  demo: {
+    /** One setup-screen slide (seconds). */
+    step: 1.3,
+    /** How far the setup screen travels horizontally (px). */
+    distance: 72,
+    /** The site's in-out curve — the same feel as the drawers. */
+    ease: pageMotion.easeInOut,
+  },
+  /**
+   * The items INSIDE the demo setup screen (helper line, Name, Instructions,
+   * Context, Paste/PDF switch, buttons): they start while the screen is still
+   * sliding in and each fades + rises slowly, one after the other. Deliberate
+   * tokens of their own — the main chat's `stagger`/`message` values are
+   * untouched (other screens read them).
+   */
+  demoItems: {
+    /** One item's fade + rise (seconds). */
+    duration: 1.0,
+    /** How far one item rises (px). */
+    distance: 16,
+    /** Delay between two consecutive items (seconds). */
+    stagger: 0.22,
+    /** Start delay: the items begin when the screen is about half way in. */
+    delay: 0.35,
+    /** Smooth ease-out — the shared hero/nav load curve. */
+    ease: pageMotion.easeOut,
+  },
+  /**
+   * EVERY sent message (main chat and demo chat alike): the new user bubble
+   * rises slowly, the assistant row follows a beat later and the list travels
+   * with a custom eased scroll (never the browser's own "smooth"). The first
+   * message and every later one feel the same.
+   */
+  send: {
+    /** The user bubble (and the assistant row): duration + rise distance. */
+    bubble: { duration: 0.9, rise: 24 },
+    /** The assistant row / thinking indicator enters after the bubble. */
+    answerDelay: 0.15,
+    /** The custom eased scroll to the newest message (seconds). */
+    scroll: 1.0,
+    /** The site's in-out curve — the same feel as the screen transitions. */
+    ease: pageMotion.easeInOut,
+  },
+  /**
+   * Mode / screen changes inside the drawer (opening ↔ conversation ↔ the
+   * demo screens): the new screen fades in and rises while the old one fades
+   * out and drifts slightly up — a crossfade, never an instant swap. Only
+   * opacity + translateY.
+   */
+  mode: {
+    /** One middle-screen crossfade (seconds). */
+    screen: 1.3,
+    /** How far the incoming screen rises (px). */
+    rise: 20,
+    /** How far the outgoing screen drifts up while fading out (px). */
+    exitDrift: 14,
+    /** The site's in-out curve — shared with the drawer itself. */
+    ease: pageMotion.easeInOut,
   },
   /** The voice orb rings breathe. */
   pulse: { duration: 1.8 },

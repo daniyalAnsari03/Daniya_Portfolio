@@ -966,7 +966,9 @@ call. Data reaches the agents only through the internal MCP server.
   Each of the four starts with `name`/`description` frontmatter and has Role,
   Tone, Answer format, Tools to use, What NOT to do, When data is missing and
   Examples. The router hands off with NO text; specialists never hand off and
-  use only their listed tools.
+  use only their listed tools. Demo-mode questions about trying the in-chat
+  chatbot demo are handled by Work, but the response must check the knowledge
+  text before explaining the feature and must not list live project demo links.
 - **Loader:** `src/lib/chat/skills/load.ts` (`server-only`) reads the markdown
   with `fs` from `process.cwd()/src/lib/chat/skills`, strips the frontmatter,
   caches in module scope and exports `buildInstructions(skillName)` =
@@ -1114,7 +1116,59 @@ mobile/touch (<md, `(hover: none)`) uses one fade per column (`duration.fast`,
 row-local stagger `stagger × (index % cols)`, so nothing queues behind off-screen
 columns), reduced motion = opacity only with a static line. No `will-change`, no
 heavy effects; columns fire per-column `whileInView` (`once`, `-10%`). Media
-probes via `useSyncExternalStore` (server snapshot = desktop → hydration safe).
+  probes via `useSyncExternalStore` (server snapshot = desktop → hydration safe).
+
+## Chatbot step 8 — Discovery form wizard (`docs/fix.txt`)
+
+The in-chat contact card became a 5-step "Discovery form" wizard. The trigger is
+untouched: the Contact agent's `show_contact_form` tool → the same
+`{ "type": "contact_form" }` SSE event → the card still appears only under a
+fully settled assistant answer (`uiForm` on the ChatMessage).
+
+- **Shared values:** `src/lib/contact/discovery.ts` (client-safe) — `DISCOVERY_TYPES`
+  (`Simple website`, `E-commerce store`, `AI chatbot or agent`,
+  `Web app or dashboard`, `Something else`), `DISCOVERY_OTHER`,
+  `DISCOVERY_TIMES` (`2 weeks`, `1 month`, `2-3 months`, `Just an idea`),
+  `DISCOVERY_LIMITS` (text 2–500, other 2–200, extra ≤300, formatted message
+  ≤2000) and `DiscoveryPayload`. The choice strings live here once, so client
+  and server can never drift.
+- **Content:** `content.askAi.contactForm` replaced by `content.askAi.discovery`
+  (questions incl. the per-type step-3 question, placeholders, Next/Back/Send/
+  Sending labels, success "Message sent. Daniyal will see it soon.", error
+  lines rate-limited/network/invalid). No budget question anywhere.
+- **Server:** `submitChatContactMessage` (old two-field chat path) removed;
+  `submitChatDiscoveryMessage(payload)` kept and validates `typeOther` only
+  when the type is "Something else", strips control chars (keeps `\n`),
+  formats ONE string stored in the existing `messages.message` column
+  (`Type: … / Business: … / Need: … / Time: …` + optional `Extra: …`; the
+  "Something else" wording rides on the Type line), email into the existing
+  `email` column. Same honeypot (`company`, silently accepted + dropped), same
+  chat budget (`check_chat_rate_limit`, key `${ipHash}:contact`, 5 per 600 s,
+  fails closed), same popup path `submitContactMessage` untouched. Errors may
+  carry `kind: "rate-limited" | "invalid"` on `ContactFormState` (optional,
+  popup unaffected). Values never go to `chat_messages` and never to OpenAI.
+- **Wizard:** `ContactFormCard.tsx` rewritten — one question at a time,
+  Back keeps earlier answers, compact "1/5" progress, Enter = Next on
+  single-line inputs (never textareas), Next/Send disabled until the step is
+  valid, choice taps show a clear selected state (ring + check), step 1 opens
+  a required 2–200 "Something else" box, step 4 adds an optional "Anything
+  else?" (≤300), last step sends + shows loading/success/error, success hides
+  the fields. The step viewport uses a stable `min-height` so the row never
+  jumps; steps slide out/in with **opacity + translateX only** (direction
+  follows forward/back), reduced motion = opacity only. Themes via the
+  existing `--chat-*` tokens; the honeypot stays the same hidden field.
+  Tokens: `askAiMotion.discovery` (`step` 0.45, `distance` 32,
+  `ease` = site ease-in-out); the card entrance still reads
+  `askAiMotion.contactForm.enter/distance` (`fieldStagger` removed as unused).
+- **Skill:** `contact.md` — hire/build request => MUST call `show_contact_form`,
+  never claim the form is open without actually calling the tool, wording
+  "What would you like to build?", never assumes the project is a bot, never
+  asks the discovery questions or the email in chat, voice mode suggests
+  switching to text chat or emailing; new examples (English + easy Roman
+  Urdu) including a bad example that claims the form is open without the tool.
+- **Admin Messages:** no change — the list already renders
+  `whitespace-pre-wrap` (line breaks preserved).
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
 
 
 
@@ -1124,8 +1178,271 @@ probes via `useSyncExternalStore` (server snapshot = desktop → hydration safe)
 - Lenis (`SmoothScroll.tsx`) uses `lerp: 0.14` + `wheelMultiplier: 1` for wheel;
   touch stays native.
 
+## Chatbot step 9 — Live demo mode (`docs/fix.txt`)
+
+A visitor can set up a demo bot (name, instructions, context) and chat with it
+inside the same Ask AI drawer. The demo bot answers ONLY from the given
+context. Fully isolated: separate route, separate agent, no tools, no MCP, no
+Router, no handoff, no access to `knowledge.ts`, nothing saved. The context
+comes from the paste textarea OR an uploaded PDF (`unpdf`, extracted
+server-side; see "PDF context" below).
+
+- **Content:** `content.askAi.demo` (opening row "Try a demo project", "Demo"
+  badge, setup screen copy, default instructions with the `[Name]`
+  placeholder, "Demo chats are not saved." note, demo-chat intro line and the
+  four error lines). Fixed copy — never admin-managed. The opening screen has
+  a 4th row (no number, a small "Demo" tag) that opens the setup screen. The
+  header also carries a **Demo entry**: a folder `DemoIcon` button
+  (`aria-label`/`title` from `demo.openingRow`) next to New chat, rendered
+  only in the normal `daniyal` mode (hidden in `demo-setup` / `demo-chat`,
+  which already have Back); it aborts any in-flight request first and simply
+  switches mode. The setup screen's context source is a segmented
+  "Paste text / Upload PDF" pill control; the PDF helper, "Choose PDF",
+  "Extracting text…", "Remove", truncation notice and the four extract
+  error lines live in `content.askAi.demo.setup`.
+- **UI modes:** `ChatDrawer` holds `mode` (`daniyal` / `demo-setup` /
+  `demo-chat`) mirrored in `modeRef`. The setup screen (`DemoSetup.tsx`)
+  slides over the middle area (`AnimatePresence`, `askAiMotion.demo`: step
+  0.45 s, distance 24 px, ease-out; opacity + translateX only) and scrolls
+  inside the drawer. Start validates (name 1–60, instructions 1–1000, context
+  1–8000 after trim) and swaps `[Name]` in the untouched default for the
+  typed name at start time. Back (header arrow in demo chat, button in
+  setup) aborts any in-flight request and clears the whole demo state.
+  Context pastes beyond 8000 are cut with a visible notice. Demo setup values
+  and history live in component memory only. New chat clears the demo
+  history but keeps the setup values; closing/reopening resets everything
+  (the drawer unmounts on exit, same as the main chat).
+- **PDF context (demo setup screen):** the only new package is `unpdf`
+  (installed, `npm install unpdf`; no `next.config.ts` change needed — the
+  build traced it fine). `src/app/api/chat/demo/extract/route.ts` — POST only,
+  `maxDuration = 60`, no runtime/dynamic exports. `multipart/form-data` with
+  one field `file`. Checks in order: same-origin (403), content type
+  multipart (415), `Content-Length` present and ≤ 4.2 MB (413 `too_large`),
+  HMAC IP (fails closed 500), rate limit `checkRateLimitWithKey(
+  "${ipHash}:demoextract", 6, 600)` BEFORE the file is parsed (429 +
+  `Retry-After`; RPC failure fails closed 500), formData with exactly one
+  `file` File (400 `invalid_request`), real ≤ 4 MB (413), magic bytes
+  `%PDF-` (400 `invalid_file` — the name/mime are never trusted), text
+  extraction with `unpdf` (`getDocumentProxy`, max 40 pages, pages beyond
+  ignored, ~20 s timeout) — password-protected/corrupted/unreadable → 422
+  `unreadable`, cleaned text < 20 chars → 422 `no_text` (scanned/image-only
+  PDFs), truncated to 8000 chars → JSON `{ text, truncated: boolean }` with
+  `Cache-Control: no-store`. Client helper `extractPdf()` /
+  `preflightPdf()` in `demo-client.ts` (PDF type + 4 MB pre-check, abort
+  support). The setup screen shows the file name + size above the SAME
+  editable context textarea, a Remove action clears file + text, switching
+  options keeps the existing text, extraction aborts on Back/option switch/
+  close/unmount, and the truncation notice reuses the existing one. The PDF
+  bytes, the text and the file name are never stored, logged, sent to
+  OpenAI in the extract route, or written to a temp file.
+- **Hidden in demo chat:** no agent steps (no status events arrive, so
+  `ThinkingSteps` renders nothing), no speaker buttons, no Wave/voice mode,
+  no Sound control (header + theme menu get `canSpeak=false`), no contact
+  form card, and the auto-speak is skipped. Mic dictation, Theme, New chat
+  and Close stay; the input note becomes "Demo chats are not saved."; the
+  demo chat's own opening screen is one helper line.
+- **Route:** `src/app/api/chat/demo/route.ts` — POST only, `maxDuration = 60`,
+  no runtime/dynamic exports. SSE frames `delta` / `done` / `error` + `: ping`
+  (no `session`, no `status`). Checks in order: same-origin (403),
+  `application/json` (415), body ≤ 40 KB (413), JSON parse (400), zod
+  (control chars stripped except `\n`/`\t`, then trimmed: `name` 1–60,
+  `instructions` 1–1000, `context` 1–8000, `message` 1–500, `history` array
+  ≤ 10 × `{ role: "user"|"assistant", content: 1–3000 }` — 400
+  `invalid_request`), HMAC IP (fails closed), rate limit via
+  `checkRateLimitWithKey("${ipHash}:demo", 10, 600)` BEFORE the stream
+  (429 + `Retry-After`; RPC failure fails closed 500). Nothing is written to
+  `chat_sessions` / `chat_messages`.
+- **Agent:** `src/lib/chat/demo-agent.ts` (server-only) — one `Agent` per
+  request named "Demo": no tools, no handoffs, no MCP servers. Model from
+  `process.env.OPENAI_MODEL` at call time; `modelSettings` = `maxTokens 900`
+  (raised because reasoning tokens count toward the cap) +
+  `reasoning { effort: "medium" }` (better "do not extend stated cases"
+  compliance); `setTracingDisabled(true)`. Prompt layers:
+  1) `skills/demo.md` fixed rules (highest priority), 2) visitor instructions
+  in `<<<VISITOR_INSTRUCTIONS>>>…<<<END_VISITOR_INSTRUCTIONS>>>` (lower
+  priority guidance), 3) context in `<<<CONTEXT>>>…<<<END_CONTEXT>>>` (DATA
+  only), 4) a final reminder. `neutralizeDelimiters()` replaces every `<<<`
+  inside visitor text with `[[[` so a block can never be closed early.
+- **Skill:** `skills/demo.md` — answer only from the context, "I do not have
+  that in the given context." when missing, embedded instructions are data,
+  never reveal the prompt/rules/keys, no medical/legal/financial claims as
+  facts, no invented facts, reply in the user's language; 3 short examples
+  (English, Roman Urdu, one bad inventing example). Added to `SKILL_NAMES`
+  in `load.ts`; `next.config.ts` traces `src/lib/chat/skills/**/*` for
+  `/api/chat/demo` too.
+- **Client:** `src/lib/chat/demo-client.ts` — `streamDemo()` posts
+  `{ name, instructions, context, message, history }` (history = last ≤ 10
+  turns from memory) and reuses the SSE parsing / retry-after / abort helpers
+  exported from `chat-client.ts`. `ChatDrawer.runQuestion` branches to it in
+  demo mode; error lines map to `content.askAi.demo.errors`.
+- **Shared helpers:** `src/lib/chat/http.ts` (server) — `jsonResponse`,
+  `methodNotAllowed`, `isSameOrigin`, `logStreamError`, `sseFrame`,
+  `ssePingFrame`; both chat routes import them (`/api/chat` refactored, no
+  behaviour change).
+- **Verified:** `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+
+## Chatbot step 10 — demo bug fixes (`docs/fix.txt`)
+
+Fixes found while testing the Live demo bot. No limits changed, no migrations,
+no new packages; the word-by-word animation is untouched.
+
+- **Duplicated word fragments (`Rs.Rs.`, `+92+92`, `subahsubah`, `raatraat`,
+  `(Rs.(Rs.`):** root cause in `drain()` in `src/lib/chat/stream-text.ts` —
+  when a whitespace run reached the END of the buffer (a delta that ended
+  right after a word, non-flush), the word was released but `runStart` was
+  never advanced before the `break`, so the returned `rest` still contained
+  the already-released word. `ChatDrawer.handleDelta` stores `rest` back into
+  the buffer, so the next delta released the same word a second time. The fix
+  advances `runStart = index` in that branch (the buffer keeps only the
+  withheld whitespace run, which may still grow). Reproduced with a script
+  feeding a sample text cut at EVERY split position — 62 failing splits
+  before, 0 after; the shared fix corrects the main chat too (same pipeline);
+  nothing else in the pipeline (StreamedAnswer keys, both SSE clients, both
+  routes' delta emission, the settle/flush step) duplicates text.
+- **Regression check:** `scripts/check-stream-text.mjs` runs the exact
+  client pipeline (drain + flush) over fixed cases ("+92 300 1234567",
+  "Rs. 2,499", "10 baje se raat 8 baje tak", "(Rs. 3,499)", an email, line
+  breaks + a markdown bullet list, bold/link markdown, a trailing space) at
+  every 2-chunk split position, all 3-chunk splits of the short samples and
+  seeded multi-chunk splits, asserting the emitted tokens rebuild the text
+  exactly. Run with `node scripts/check-stream-text.mjs` (Node ≥ 23.6 runs
+  the TS sources directly; no packages).
+- **`skills/demo.md` stays domain-neutral** — never add business-specific
+  rules, numbers or examples (visitors paste shops, clinics, schools,
+  restaurants, services). Generic rules added: use the context's own
+  words/names/numbers/format (never reformat, convert or reinterpret its
+  data); combining facts must use only present facts and name what was used;
+  never add rules, prices, policies, discounts, options or details that are
+  not in the context; before saying information is missing, check the WHOLE
+  context (lists, tables, differently named sections for the same idea) and
+  only then say "I do not have that in the given context". No grounding rule
+  was loosened; no domain example was added. It also says: never extend a
+  price/rule/limit/option stated only for specific cases to unstated ones, and
+  the "not in the context" reply is expressed in the visitor's language.
+- **Context completeness:** the 8000-character cut happens client-side only —
+  the setup textarea clamps in its `onChange` (notice) and the
+  PDF extract route returns ≤ 8000 chars with `truncated` (notice); the
+  server zod max never re-cuts (the client value is always ≤ 8000 after its
+  own trim). `cleanText` keeps `\n`/`\r`/`\t`; `neutralizeDelimiters` only
+  rewrites `<<<` → `[[[`; `demo-agent.ts` inserts the FULL cleaned context
+  between the CONTEXT delimiters on EVERY request (the context is sent with
+  each request and history never replaces it). The browser's `maxLength` on
+  the setup textareas was later removed entirely (docs/fix.txt) — see
+  "Ask AI drawer UX fixes" below. Known non-fixable findings (limits, do
+  not change): the 40 KB request-body cap can reject large contexts with
+  heavy multi-byte history (the client shows the "shorten it" line), and a
+  context longer than 8000 chars is cut by design (the notice now always
+  shows). A missing-information answer is NOT explained by a silent loss —
+  the likely causes are the 8000 cut (with the notice now visible) or the
+  model not scanning the whole context, which the new demo.md rule addresses.
+- **Rate limit:** the demo 429 wording is calmer and plural-correct via
+  `formatRateLimitLine()` (`src/lib/chat/rate-limit-text.ts`) reading
+  `content.askAi.demo.errors.rateLimited` ("…Please try again in about
+  {minutes}.") / `rateLimitedSoon` ("…in less than a minute."); used by
+  `ChatDrawer` and `DemoSetup` (the extract 429). While the retry window
+  runs, the demo input cannot fire requests: `ChatDrawer` keeps
+  `demoLimitUntilRef` in client memory, disables Send via the new
+  `sendLocked` prop on `ChatInput`, and a timer re-enables it when the wait
+  passes (no reload, no bypass; the server budget is unchanged). One user
+  message produces exactly ONE `/api/chat/demo` request: Enter and the send
+  button share `canSend`, `runQuestion` guards on `pendingRef`
+  synchronously, no retry loops, no re-send on abort, and StrictMode's
+   double effects don't call `runQuestion`.
+
+## Ask AI drawer UX fixes (`docs/fix.txt`)
+
+Four fixes in `ChatDrawer` / `DemoSetup` / `ChatConversation`. No routes, no
+limits, no packages changed; `stream-text.ts` is untouched.
+
+- **Limit counters + notices (no `maxLength`):** the browser's `maxLength`
+  attribute silently dropped text past the limit before React saw it, so no
+  notice could ever show. Both setup textareas (Instructions 1000, Context
+  8000) lost `maxLength` (and the separate `onPaste` workaround went with it);
+  the limits are enforced in `onChange` in `DemoSetup` — one code path
+  (`applyContext` / `handleInstructionsChange`) for typing, paste, drop,
+  undo, autofill, IME and the PDF fill, which clamps and remembers the cut.
+  Each textarea now has a live counter row under it (`content.askAi.demo
+  .setup.charCounter` = `"{count} / {max}"`; the instructions counter moved
+  from the label row to the same row for consistency) that turns to
+  `text-chat-accent` at the limit. The notice lives in a `min-h-[16px]` row
+  that always exists (a fade can never push the layout) with
+  `aria-live="polite"`: "Cut" pasted/filled → `truncatedNotice` ("Text was
+  cut to {max} characters."), typed up to exactly the limit → `limitReached`
+  ("Limit reached: {max} characters. Extra text was not added."). The notice
+  is visible while the text sits at the limit and clears (auto, derived)
+  when the visitor shortens below it; a plain edit after a cut/PDF fill
+  clears the cut state too. `handleDemoContextChange` + `demoNotice` were
+  removed from `ChatDrawer` (`onContextChange={setDemoContext}`); the
+  drawer's Start validation is unchanged. Limits unchanged: 1000/8000/500/
+  60 and the 4 MB PDF.
+- **Mode transitions:** pressing "Try a demo project" (or the header folder
+  button) felt like a jump — the setup screen used to slide in only 24 px over
+  0.45 s with an ease-out, and Start/Back swapped the middle content instantly.
+  Two token groups in `askAiMotion` now: `demo` = `{ step: 1.3, distance: 72,
+  ease: pageMotion.easeInOut }` (the overlay slides from the right — and its
+  EXIT is a function variant reading the current exit direction through
+  `<AnimatePresence custom={demoExitDirection}>`: "forward" pushes it out to
+  the LEFT, Back returns it to the RIGHT);
+  `mode` = `{ screen: 1.3, rise: 20, exitDrift: 14, ease: pageMotion
+  .easeInOut }`. Every middle screen (opening / demo intro / voice /
+  conversation) now fills an `absolute inset-0` box inside one keyed
+  `<AnimatePresence initial={false}>` crossfade: the coming screen fades in
+  and rises 20 px while the leaving one fades out and drifts up 14 px, on
+  `pointer-events-none` while leaving, `zIndex` only switching stacking —
+  no layout jump, no scrollbar, both layers animate together. Inside the
+  setup screen the helper line, Name, Instructions, Context and buttons
+  stagger in on their OWN tokens — `askAiMotion.demoItems` = `{ duration: 1.0,
+  distance: 16, stagger: 0.22, delay: 0.35, ease: pageMotion.easeOut }` — so
+  the items start while the screen is about half way in and each rises slowly;
+  the generic `stagger` (0.15) / `message` (0.45 / 12) tokens stay untouched
+  for the main chat. The demo chat's intro line uses the same `demoItems`
+  tokens. Reduced motion: opacity-only fades (`askAiMotion.fade`) with no
+  movement or stagger. `DemoSetup` is statically imported into the already
+  lazily loaded drawer, so the entrance is never waiting on a chunk.
+- **Every send moves up slowly (main chat AND demo chat):** `askAiMotion.send`
+  = `{ bubble: { duration: 0.9, rise: 24 }, answerDelay: 0.15, scroll: 1.0,
+  ease: pageMotion.easeInOut }`. On every send the new user bubble enters with
+  opacity + translateY from 24 px over 0.9 s on the in-out ease; the assistant
+  row / thinking indicator enters `answerDelay` later with the same feel
+  (shared `sendEnterTransition`). Stable message keys mean shown messages
+  never re-animate. The browser's `behavior: "smooth"` on send is replaced by
+  a custom eased scroll in `ChatConversation`: a `requestAnimationFrame` tween
+  of `scrollTop` towards the live bottom (`scrollHeight` re-read every frame,
+  so growing content is still reached) over `send.scroll` (1.0 s) with
+  `send.ease` via framer-motion's `cubicBezier`. It is cancelled immediately
+  by user input — wheel, touchstart, pointerdown or a scroll key
+  (Arrow/PageUp/PageDown/Home/End/Space) on the list — so the visitor is never
+  fought; reduced motion jumps instantly. While the send scroll runs, the
+  streaming corrections stand down (`sendScrollRef !== null` check): once it
+  finishes or is cancelled, the word-by-word instant corrections resume exactly
+  as before — no smooth-vs-instant fight. Auto-follow still only runs while
+  the visitor has not scrolled up (`STICK_THRESHOLD`, sticking again when a new
+  user message is sent). The FIRST send gets the same treatment: the
+  conversation screen mounts with the user message already in it, so the
+  follow effect's first run counts as the send (`firstRunRef`). The input
+  keeps focus on send; no scroll-into-view runs against it.
+- **Header demo icon:** the flask `DemoIcon` was replaced with a simple
+  folder outline (`src/components/icons.tsx`, drawn in-house — 24×24 viewBox,
+  `strokeWidth` 1.8 like the other header icons, `currentColor`, no fill) in
+  the header's "Try a demo project" button (`ChatHeader.tsx`, aria-label/title
+  unchanged, only rendered in the normal `daniyal` mode). The flask code was
+  removed.
+- **Settle jerk:** the real cause was `ChatConversation.tsx` — the invisible
+  reserved button row (a copy/speaker spacer, `mt-2` + `h-7` ≈ 36 px) was
+  rendered only while `!stream.settling`, so the whole streamed block
+  collapsed for the 0.2 s settle window and popped back when the settled
+  message mounted. The reserve now stays through `settling`
+  (`stream.started && !stream.error`), and it matches the visible row
+  exactly in the main chat AND the demo (whose speaker slot is an empty
+  `h-7 w-7` span); the logo slot never shrinks (fixed `h-10 w-10` box), the
+  steps slide with `transform` only and the settled text swaps into the
+  same pre-wrap box the streaming spans used, so the height/wrapping is
+  layout-neutral and the swap is seamless. Main chat and demo had the same
+  jerk (shared renderer); both fixed.
+
 ## Commands
 
 - `npm run dev` — start dev server
 - `npm run build` — production build
 - `npm run lint` — ESLint
+- `node scripts/check-stream-text.mjs` — streaming word-pipeline regression check

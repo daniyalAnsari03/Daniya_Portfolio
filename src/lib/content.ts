@@ -135,19 +135,116 @@ export const content = {
       hideLabel: "Hide agent steps",
     },
     savedNote: "Conversations are saved",
-    // The in-chat contact form card (ContactFormCard). It is opened by the
-    // Contact agent's `show_contact_form` signal and submits through the SAME
-    // server-side path the Contact popup uses (src/lib/contact/actions.ts).
-    contactForm: {
-      emailLabel: "Email",
-      emailPlaceholder: "you@example.com",
-      messageLabel: "Message",
-      messagePlaceholder: "Tell me about your project…",
-      submit: "Send",
-      sending: "Sending…",
+    // The "Live demo mode" inside the same drawer (docs/fix.txt). A visitor
+    // sets up a small bot (name, instructions, pasted context) and chats with
+    // it — it answers ONLY from that context, through POST /api/chat/demo.
+    // Fully isolated: no tools, no MCP, no session, nothing saved. Fixed copy
+    // — never admin-managed.
+    demo: {
+      openingRow: "Try a demo project",
+      badge: "Demo",
+      setup: {
+        title: "Set up your demo",
+        helper:
+          "Build a small assistant in a minute. It will answer only from the context you give.",
+        nameLabel: "Name",
+        namePlaceholder: "Ali Store Assistant",
+        instructionsLabel: "Instructions",
+        contextLabel: "Paste your text",
+        contextHelper: "Product info, FAQ, policies…",
+        defaultInstructions:
+          "You are a customer help assistant for [Name]. Answer only from the given context. If the answer is not in the context, say you do not have it. Keep answers short and friendly. Reply in the language the user writes in.",
+        startLabel: "Start demo",
+        backLabel: "Back",
+        truncatedNotice: "Text was cut to {max} characters.",
+        limitReached: "Limit reached: {max} characters. Extra text was not added.",
+        charCounter: "{count} / {max}",
+        // The two context options in the setup screen (docs/fix.txt): the
+        // usual paste textarea or a PDF whose text is extracted server-side
+        // (POST /api/chat/demo/extract) and pasted into the same textarea.
+        contextOptionsLabel: "Context source",
+        contextOptionPaste: "Paste text",
+        contextOptionPdf: "Upload PDF",
+        pdfHelper: "Text-based PDFs only, up to 4 MB.",
+        pdfChoose: "Choose PDF",
+        pdfLoading: "Extracting text…",
+        pdfRemove: "Remove",
+        extractErrors: {
+          tooLarge: "That PDF is larger than 4 MB.",
+          invalidFile: "That file isn't a text PDF.",
+          unreadable:
+            "That PDF couldn't be read. Is it password protected or damaged?",
+          noText: "No text found — scanned PDFs do not work.",
+        },
+      },
+      chatIntro: "Ask your demo assistant something from your context.",
+      note: "Demo chats are not saved.",
+      errors: {
+        // Both lines are filled by formatRateLimitLine (src/lib/chat/rate-limit-text.ts):
+        // {minutes} becomes "1 minute" / "N minutes"; under 60 seconds the
+        // `rateLimitedSoon` line is used instead.
+        rateLimited:
+          "You have reached the demo message limit for now. Please try again in about {minutes}.",
+        rateLimitedSoon:
+          "You have reached the demo message limit for now. Please try again in less than a minute.",
+        network:
+          "Couldn't reach the server. Please check your connection and try again.",
+        server: "Something went wrong. Please try again in a moment.",
+        invalid: "That message couldn't be sent. Please shorten it and try again.",
+      },
+    },
+    // The in-chat "Discovery form" wizard (ContactFormCard). It is opened by
+    // the Contact agent's `show_contact_form` signal and submits through
+    // submitChatDiscoveryMessage (src/lib/contact/actions.ts). Fixed copy —
+    // never admin-managed. The choice values themselves live in
+    // src/lib/contact/discovery.ts so the client and server stay in sync.
+    discovery: {
+      progress: "{current}/{total}",
+      nextLabel: "Next",
+      backLabel: "Back",
+      sendLabel: "Send",
+      sendingLabel: "Sending…",
       success: "Message sent. Daniyal will see it soon.",
-      networkError:
-        "Couldn't send the message. Please check your connection and try again.",
+      errors: {
+        rateLimited: "Too many messages sent. Please try again later.",
+        network:
+          "Couldn't send the message. Please check your connection and try again.",
+        invalid: "Please check your answers and try again.",
+      },
+      steps: {
+        type: {
+          question: "What do you want to build?",
+          otherPlaceholder: "Tell me what you have in mind…",
+        },
+        business: {
+          question: "What is your business or work?",
+          placeholder:
+            "For example: a cafe, a design studio, a personal brand…",
+        },
+        need: {
+          placeholder: "Write a few lines…",
+          questions: {
+            "Simple website":
+              "How many pages do you need and what should they show? (for example Home, About, Contact)",
+            "E-commerce store":
+              "How many products do you have, and how do you want payment and delivery to work?",
+            "AI chatbot or agent":
+              "What questions should it answer, and where should it live (website, WhatsApp)?",
+            "Web app or dashboard":
+              "Who will use it, and what is the most important thing it must do?",
+            "Something else": "Describe what you need in a few lines.",
+          },
+        },
+        time: {
+          question: "When do you need it?",
+          extraLabel: "Anything else?",
+          extraPlaceholder: "Optional — anything else Daniyal should know.",
+        },
+        email: {
+          question: "Your email",
+          emailPlaceholder: "you@example.com",
+        },
+      },
     },
     errors: {
       rateLimited:

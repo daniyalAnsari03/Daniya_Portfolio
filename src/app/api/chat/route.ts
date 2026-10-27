@@ -33,6 +33,14 @@ import {
 } from "@/lib/chat/sessions";
 import type { ChatStatus, ChatStatusTopic } from "@/lib/chat/status-events";
 import {
+  jsonResponse,
+  logStreamError,
+  methodNotAllowed,
+  isSameOrigin,
+  sseFrame,
+  ssePingFrame,
+} from "@/lib/chat/http";
+import {
   TOOL_GET_ABOUT,
   TOOL_GET_CHATBOT_KNOWLEDGE,
   TOOL_GET_CV,
@@ -90,54 +98,14 @@ function asSpecialist(name: string): SpecialistAgent | null {
 }
 
 const encoder = new TextEncoder();
-const PING_FRAME = encoder.encode(": ping\n\n");
+const PING_FRAME = ssePingFrame();
 
-function jsonResponse(
-  body: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      ...headers,
-    },
-  });
-}
-
-function methodNotAllowed(): Response {
-  return jsonResponse({ error: "method_not_allowed" }, 405, {
-    allow: "POST",
-  });
-}
-
-function sseFrame(event: ChatStreamEvent): Uint8Array {
-  return encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+function sseEvent(event: ChatStreamEvent): Uint8Array {
+  return sseFrame(event);
 }
 
 function logChatError(error: unknown): void {
-  if (error instanceof Error) {
-    const message = error.message.replace(/\s+/g, " ").slice(0, 200);
-    console.error(`[api/chat] ${error.name}: ${message}`);
-    return;
-  }
-  console.error("[api/chat] UnknownError");
-}
-
-function isSameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-
-  try {
-    const originHost = new URL(origin).host;
-    const requestHost =
-      request.headers.get("host") ?? new URL(request.url).host;
-    return originHost === requestHost;
-  } catch {
-    return false;
-  }
+  logStreamError("api/chat", error);
 }
 
 function createEventStream(options: {
@@ -155,7 +123,7 @@ function createEventStream(options: {
       const send = (event: ChatStreamEvent) => {
         if (streamClosed) return;
         try {
-          controller.enqueue(sseFrame(event));
+          controller.enqueue(sseEvent(event));
         } catch {
           streamClosed = true;
         }

@@ -35,9 +35,10 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   devIndicators: false,
   outputFileTracingIncludes: {
-    // The agents read their markdown skill files from disk at runtime, so the
-    // future chat route must carry them into the serverless output.
+    // The agents read their markdown skill files from disk at runtime, so
+    // both chat routes carry them into the serverless output.
     "/api/chat": ["./src/lib/chat/skills/**/*"],
+    "/api/chat/demo": ["./src/lib/chat/skills/**/*"],
   },
   images: {
     // Only applies to the local static assets in /public (the hero photo and

@@ -15,6 +15,8 @@ import {
   streamAssistant,
   type ChatStreamError,
 } from "@/lib/chat/chat-client";
+import { streamDemo } from "@/lib/chat/demo-client";
+import { formatRateLimitLine } from "@/lib/chat/rate-limit-text";
 import type { ChatStatus } from "@/lib/chat/status-events";
 import {
   drainCompleteWords,
@@ -30,6 +32,13 @@ import ChatConversation from "./ChatConversation";
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
 import ChatOpening from "./ChatOpening";
+import DemoIntro from "./DemoIntro";
+import DemoSetup, {
+  MAX_DEMO_CONTEXT,
+  MAX_DEMO_INSTRUCTIONS,
+  MAX_DEMO_NAME,
+  type DemoExitDirection,
+} from "./DemoSetup";
 import VoiceMode from "./VoiceMode";
 import { useChatPreferences } from "./useChatPreferences";
 import { useSpeechOutputSupported, useSpeechRecognition } from "./useSpeech";
@@ -50,6 +59,15 @@ const PANEL_WIDTH =
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * The three drawer modes: the normal "Ask AI" chat about Daniyal, the demo
+ * setup screen and the demo chat itself (docs/fix.txt).
+ */
+type DrawerMode = "daniyal" | "demo-setup" | "demo-chat";
+
+const DEFAULT_DEMO_INSTRUCTIONS =
+  content.askAi.demo.setup.defaultInstructions;
 
 function useFocusTrap(
   active: boolean,
@@ -92,24 +110,24 @@ function useFocusTrap(
 }
 
 /** Turn a typed stream error into the quiet line shown under the answer. */
-function formatChatError(error: ChatStreamError): string {
+function formatChatError(error: ChatStreamError, demo: boolean): string {
+  const lines = demo ? content.askAi.demo.errors : content.askAi.errors;
+
   switch (error.code) {
-    case "rate_limited": {
-      const seconds = error.retryAfterSeconds ?? 60;
-      const minutes = Math.max(1, Math.ceil(seconds / 60));
-      return content.askAi.errors.rateLimited.replace(
-        "{minutes}",
-        String(minutes),
-      );
-    }
+    case "rate_limited":
+      // Only the demo mode uses the shared rate-limit wording helper — the
+      // main chat keeps its own line.
+      return demo
+        ? formatRateLimitLine(error.retryAfterSeconds)
+        : lines.rateLimited;
     case "network":
-      return content.askAi.errors.network;
+      return lines.network;
     case "invalid":
-      return content.askAi.errors.invalid;
+      return lines.invalid;
     case "empty":
     case "server":
     default:
-      return content.askAi.errors.server;
+      return lines.server;
   }
 }
 
@@ -139,6 +157,36 @@ export default function ChatDrawer({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [animating, setAnimating] = useState(false);
 
+  // The drawer mode: the normal chat, the demo setup or the demo chat. The
+  // ref mirrors the state so the request pipeline never reads stale mode.
+  const [mode, setModeState] = useState<DrawerMode>("daniyal");
+  const modeRef = useRef<DrawerMode>("daniyal");
+  const setMode = useCallback((next: DrawerMode) => {
+    modeRef.current = next;
+    setModeState(next);
+  }, []);
+
+  // The demo setup — component/client memory only (no storage, no URL).
+  const [demoName, setDemoName] = useState("");
+  const [demoInstructions, setDemoInstructions] = useState<string>(
+    DEFAULT_DEMO_INSTRUCTIONS,
+  );
+  const [demoContext, setDemoContext] = useState("");
+  /**
+   * Which way the setup screen leaves: the value is set in the SAME handler
+   * that switches the mode, and the leaving overlay reads it through the
+   * AnimatePresence `custom` prop, so forward pushes it out to the left and
+   * Back returns it to the right.
+   */
+  const [demoExitDirection, setDemoExitDirection] =
+    useState<DemoExitDirection>("forward");
+  /** The validated setup the demo chat runs with (name/substituted instructions/context). */
+  const demoConfigRef = useRef<{
+    name: string;
+    instructions: string;
+    context: string;
+  } | null>(null);
+
   // The conversation — in memory only, never persisted.
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -147,6 +195,14 @@ export default function ChatDrawer({
   const pendingRef = useRef(false);
 
   const [input, setInput] = useState("");
+  /**
+   * The demo limiter (docs/fix.txt): while the server's 429 retry window is
+   * running, the demo input stops firing requests. Client memory only — the
+   * window clears itself when the wait passes, so the visitor is never stuck
+   * (and the server-side budget is never bypassed).
+   */
+  const [demoLimitSeconds, setDemoLimitSeconds] = useState<number | null>(null);
+  const demoLimitUntilRef = useRef<number | null>(null);
   const [voiceMode, setVoiceMode] = useState(false);
   const voiceModeRef = useRef(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
@@ -288,8 +344,10 @@ export default function ChatDrawer({
     if (mountedRef.current) setSettledId(assistantMessage.id);
 
     // Sound ON in the text chat: read the settled answer sentence by sentence.
-    // Without any audio output nothing is requested from /api/tts.
+    // Without any audio output nothing is requested from /api/tts. The demo
+    // mode never speaks — it has no sound controls at all.
     if (
+      modeRef.current === "daniyal" &&
       !voiceModeRef.current &&
       voiceRepliesRef.current &&
       canSpeakRef.current
@@ -350,13 +408,24 @@ export default function ChatDrawer({
       bufferRef.current = "";
       doneRef.current = true;
 
+      // A demo 429 opens the client-side send lock for the retry window; the
+      // limit itself stays on the server.
+      if (
+        error.code === "rate_limited" &&
+        modeRef.current === "demo-chat"
+      ) {
+        const seconds = error.retryAfterSeconds ?? 60;
+        demoLimitUntilRef.current = Date.now() + seconds * 1000;
+        setDemoLimitSeconds(seconds);
+      }
+
       const current = streamRef.current;
       const tokens = releasedRef.current.slice();
       applyStream({
         id: current?.id ?? `chat-${idRef.current}`,
         tokens,
         steps: [],
-        error: formatChatError(error),
+        error: formatChatError(error, modeRef.current === "demo-chat"),
         started: tokens.some((token) => token.kind === "word"),
         settling: false,
         text: fullTextRef.current,
@@ -447,6 +516,25 @@ export default function ChatDrawer({
   useEffect(() => {
     releaseTickRef.current = releaseTick;
   }, [releaseTick]);
+
+  // Re-enable the demo input when the retry window passes — no reload needed.
+  useEffect(() => {
+    if (demoLimitSeconds === null) return;
+    const until = demoLimitUntilRef.current;
+    if (until === null) return;
+
+    const remaining = until - Date.now();
+    if (remaining <= 0) {
+      demoLimitUntilRef.current = null;
+      setDemoLimitSeconds(null);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      demoLimitUntilRef.current = null;
+      setDemoLimitSeconds(null);
+    }, remaining);
+    return () => window.clearTimeout(id);
+  }, [demoLimitSeconds]);
 
   const handleDelta = useCallback(
     (delta: string) => {
@@ -562,6 +650,16 @@ export default function ChatDrawer({
       commitStream();
       setSpeakingId(null);
 
+      // The demo keeps its own short history in the same message list; only
+      // settled, error-free turns ride along (at most 10).
+      const demoMode = modeRef.current === "demo-chat";
+      const demoHistory = demoMode
+        ? messagesRef.current
+            .filter((message) => message.settled && !message.error)
+            .slice(-10)
+            .map((message) => ({ role: message.role, content: message.text }))
+        : [];
+
       const userMessage: ChatMessage = {
         id: `chat-${idRef.current++}`,
         role: "user",
@@ -595,67 +693,88 @@ export default function ChatDrawer({
       let collected = "";
       let failure: ChatStreamError | null = null;
 
-      await streamAssistant({
-        message: trimmed,
-        sessionId: sessionIdRef.current,
-        signal: controller.signal,
-        onSession: (id) => {
-          sessionIdRef.current = id;
-        },
-        onStatus: (status) => {
-          if (controller.signal.aborted) return;
-          if (requestId !== requestIdRef.current) return;
-          // Voice mode ignores the live steps entirely.
-          if (mode === "collect") return;
-
-          stepsRef.current = [...stepsRef.current, status];
-          const current = streamRef.current;
-          if (!current) return;
-          applyStream({ ...current, steps: stepsRef.current.slice(), settling: false });
-        },
-        onUi: () => {
-          if (controller.signal.aborted) return;
-          if (requestId !== requestIdRef.current) return;
-          // Voice mode never shows the form.
-          if (mode === "collect") return;
-
-          uiContactFormRef.current = true;
-        },
-        onDelta: (delta) => {
-          if (controller.signal.aborted) return;
-          if (requestId !== requestIdRef.current) return;
-          if (mode === "collect") {
-            // Speak only while this request is still current AND the voice
-            // mode that started it is still open with the sound on.
-            if (
-              !voiceModeRef.current ||
-              !voiceRepliesRef.current ||
-              !canSpeakRef.current
-            ) {
-              return;
-            }
-            collected += delta;
-            // Voice mode hears the answer as it streams, one sentence at a
-            // time; the text is still kept for the conversation history.
-            player.push(delta);
+      const handleStreamDelta = (delta: string) => {
+        if (controller.signal.aborted) return;
+        if (requestId !== requestIdRef.current) return;
+        if (mode === "collect") {
+          // Speak only while this request is still current AND the voice
+          // mode that started it is still open with the sound on.
+          if (
+            !voiceModeRef.current ||
+            !voiceRepliesRef.current ||
+            !canSpeakRef.current
+          ) {
             return;
           }
-          handleDelta(delta);
-        },
-        onDone: () => {
-          if (controller.signal.aborted) return;
-          if (requestId !== requestIdRef.current) return;
-          if (mode === "animate") flushTail();
-          else if (canSpeakRef.current) player.flush();
-        },
-        onError: (error) => {
-          if (controller.signal.aborted) return;
-          if (requestId !== requestIdRef.current) return;
-          failure = error;
-          if (mode === "animate") failStream(error);
-          else player.stop();
-        },
-      });
+          collected += delta;
+          // Voice mode hears the answer as it streams, one sentence at a
+          // time; the text is still kept for the conversation history.
+          player.push(delta);
+          return;
+        }
+        handleDelta(delta);
+      };
+      const handleStreamDone = () => {
+        if (controller.signal.aborted) return;
+        if (requestId !== requestIdRef.current) return;
+        if (mode === "animate") flushTail();
+        else if (canSpeakRef.current) player.flush();
+      };
+      const handleStreamError = (error: ChatStreamError) => {
+        if (controller.signal.aborted) return;
+        if (requestId !== requestIdRef.current) return;
+        failure = error;
+        if (mode === "animate") failStream(error);
+        else player.stop();
+      };
+
+      if (demoMode) {
+        const config = demoConfigRef.current;
+        if (!config) return null;
+
+        await streamDemo({
+          name: config.name,
+          instructions: config.instructions,
+          context: config.context,
+          message: trimmed,
+          history: demoHistory,
+          signal: controller.signal,
+          onDelta: handleStreamDelta,
+          onDone: handleStreamDone,
+          onError: handleStreamError,
+        });
+      } else {
+        await streamAssistant({
+          message: trimmed,
+          sessionId: sessionIdRef.current,
+          signal: controller.signal,
+          onSession: (id) => {
+            sessionIdRef.current = id;
+          },
+          onStatus: (status) => {
+            if (controller.signal.aborted) return;
+            if (requestId !== requestIdRef.current) return;
+            // Voice mode ignores the live steps entirely.
+            if (mode === "collect") return;
+
+            stepsRef.current = [...stepsRef.current, status];
+            const current = streamRef.current;
+            if (!current) return;
+            applyStream({ ...current, steps: stepsRef.current.slice(), settling: false });
+          },
+          onUi: () => {
+            if (controller.signal.aborted) return;
+            if (requestId !== requestIdRef.current) return;
+            // Voice mode never shows the form.
+            if (mode === "collect") return;
+
+            uiContactFormRef.current = true;
+          },
+          onDelta: handleStreamDelta,
+          onDone: handleStreamDone,
+          onError: handleStreamError,
+        });
+      }
 
       if (controller.signal.aborted || requestId !== requestIdRef.current) {
         return null;
@@ -695,6 +814,14 @@ export default function ChatDrawer({
   );
 
   const handleSend = useCallback(() => {
+    // While the demo retry window runs, the send must not fire a request.
+    if (
+      modeRef.current === "demo-chat" &&
+      demoLimitUntilRef.current !== null &&
+      Date.now() < demoLimitUntilRef.current
+    ) {
+      return;
+    }
     const value = input;
     setInput("");
     // Stop the previous reply first, then prime the audio element inside this
@@ -764,6 +891,70 @@ export default function ChatDrawer({
     stop: stopRecognition,
     cancel: cancelRecognition,
   } = useSpeechRecognition(handleFinal);
+
+  // ---------------------------------------------------------------------
+  // The demo mode
+  // ---------------------------------------------------------------------
+
+  /** Opening screen → the demo setup screen (the normal chat is empty here). */
+  const handleOpenDemoSetup = useCallback(() => {
+    // Same mode-switch rule as Back: no in-flight request or recognition
+    // survives, and nothing spoken keeps playing behind a mode change.
+    abortStream();
+    cancelRecognition();
+    player.stop();
+    setSpeakingId(null);
+    setInput("");
+    setDemoExitDirection("forward");
+    setMode("demo-setup");
+  }, [abortStream, cancelRecognition, player, setMode]);
+
+  /** Validated by the setup screen — Start only fires with every field valid. */
+  const handleDemoStart = useCallback(() => {
+    const name = demoName.trim();
+    const instructions = demoInstructions.trim();
+    const context = demoContext.trim();
+
+    if (
+      !name ||
+      name.length > MAX_DEMO_NAME ||
+      !instructions ||
+      instructions.length > MAX_DEMO_INSTRUCTIONS ||
+      !context ||
+      context.length > MAX_DEMO_CONTEXT
+    ) {
+      return;
+    }
+
+    // The untouched default shows the `[Name]` placeholder — swap the typed
+    // name in at start time.
+    const finalInstructions =
+      demoInstructions === DEFAULT_DEMO_INSTRUCTIONS
+        ? demoInstructions.replace("[Name]", name)
+        : demoInstructions;
+
+    demoConfigRef.current = { name, instructions: finalInstructions, context };
+    setDemoExitDirection("forward");
+    setMode("demo-chat");
+  }, [demoContext, demoInstructions, demoName, setMode]);
+
+  /**
+   * Back to the normal Ask AI: aborts any in-flight request and clears the
+   * whole demo state (setup values and history).
+   */
+  const handleDemoBack = useCallback(() => {
+    abortStream();
+    cancelRecognition();
+    player.stop();
+    setSpeakingId(null);
+    demoConfigRef.current = null;
+    setDemoName("");
+    setDemoInstructions(DEFAULT_DEMO_INSTRUCTIONS);
+    setDemoContext("");
+    setInput("");
+    setDemoExitDirection("back");
+    setMode("daniyal");
+  }, [abortStream, cancelRecognition, player, setMode]);
 
   // ---------------------------------------------------------------------
   // The controls
@@ -950,8 +1141,35 @@ export default function ChatDrawer({
       : content.askAi.voiceErrors.failed
     : null;
 
+  const demo = mode !== "daniyal";
   const showVoice = voiceMode;
-  const showOpening = !voiceMode && messages.length === 0 && !stream;
+  const showOpening =
+    mode === "daniyal" && !voiceMode && messages.length === 0 && !stream;
+  const showDemoIntro =
+    mode === "demo-chat" && !voiceMode && messages.length === 0 && !stream;
+
+  /**
+   * Which middle screen is showing — the crossfade key. The outgoing screen
+   * fades out and drifts slightly up while the incoming one fades in and
+   * rises (`askAiMotion.mode`), so a mode change — including the first
+   * message's opening → conversation swap — never snaps.
+   */
+  const screenId = showVoice
+    ? "voice"
+    : showOpening
+      ? "opening"
+      : showDemoIntro
+        ? "demo-intro"
+        : "conversation";
+
+  const headerTitle =
+    mode === "daniyal"
+      ? showVoice
+        ? content.askAi.voiceTitle
+        : content.askAi.title
+      : mode === "demo-setup"
+        ? content.askAi.demo.setup.title
+        : demoName.trim() || content.askAi.demo.badge;
 
   return (
     <AnimatePresence onExitComplete={() => onExited()}>
@@ -977,7 +1195,9 @@ export default function ChatDrawer({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label={content.askAi.title}
+            aria-label={
+              demo ? content.askAi.demo.setup.title : content.askAi.title
+            }
             tabIndex={-1}
             data-chat-theme={theme}
             className={`absolute inset-y-0 right-0 flex h-viewport-sm flex-col overflow-hidden rounded-l-[18px] bg-chat-surface text-chat-text outline-none ${PANEL_WIDTH}`}
@@ -998,64 +1218,127 @@ export default function ChatDrawer({
           >
             <div className="flex min-h-0 flex-1 flex-col">
               <ChatHeader
-                title={
-                  showVoice ? content.askAi.voiceTitle : content.askAi.title
-                }
+                title={headerTitle}
                 subtitle={
-                  showVoice || !showOpening ? undefined : content.askAi.subtitle
+                  mode === "daniyal" && showOpening
+                    ? content.askAi.subtitle
+                    : undefined
                 }
+                badge={demo ? content.askAi.demo.badge : undefined}
+                onBack={mode === "demo-chat" ? handleDemoBack : undefined}
+                onDemo={mode === "daniyal" ? handleOpenDemoSetup : undefined}
                 theme={theme}
                 onThemeChange={setTheme}
                 voiceReplies={voiceReplies}
                 onVoiceRepliesChange={handleVoiceRepliesChange}
-                canSpeak={canSpeak}
+                canSpeak={demo ? false : canSpeak}
                 pending={pending}
                 onNewChat={handleNewChat}
                 onClose={handleClose}
               />
 
-              {showVoice ? (
-                <VoiceMode
-                  status={voiceStatus}
-                  transcript={transcript}
-                  voiceReplies={voiceReplies}
-                  canSpeak={canSpeak}
-                  onKeyboard={handleLeaveVoice}
-                  onToggleMic={handleToggleMic}
-                  onToggleSpeaker={() =>
-                    handleVoiceRepliesChange(!voiceReplies)
-                  }
-                />
-              ) : showOpening ? (
-                <ChatOpening onPick={handlePick} />
-              ) : (
-                <ChatConversation
-                  messages={messages}
-                  pending={pending}
-                  canSpeak={canSpeak}
-                  speakingId={speakingId}
-                  onSpeak={handleSpeak}
-                  onStopSpeaking={handleStopSpeaking}
-                  stream={stream}
-                  settledId={settledId}
-                />
-              )}
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                {/* One crossfade for every middle-screen change. Each screen
+                    fills the same box (absolute inset-0), so the crossfade
+                    never shifts the layout, never shows a blank gap and the
+                    leaving screen is not clickable. */}
+                <AnimatePresence initial={false}>
+                  <motion.div
+                    key={screenId}
+                    initial={{
+                      opacity: 0,
+                      y: reduce ? 0 : askAiMotion.mode.rise,
+                      zIndex: 1,
+                    }}
+                    animate={{ opacity: 1, y: 0, zIndex: 1 }}
+                    exit={{
+                      opacity: 0,
+                      y: reduce ? 0 : -askAiMotion.mode.exitDrift,
+                      zIndex: 0,
+                      pointerEvents: "none",
+                    }}
+                    transition={{
+                      duration: reduce
+                        ? askAiMotion.fade
+                        : askAiMotion.mode.screen,
+                      ease: askAiMotion.mode.ease,
+                    }}
+                    className="absolute inset-0 flex min-h-0 flex-col"
+                  >
+                    {showVoice ? (
+                      <VoiceMode
+                        status={voiceStatus}
+                        transcript={transcript}
+                        voiceReplies={voiceReplies}
+                        canSpeak={canSpeak}
+                        onKeyboard={handleLeaveVoice}
+                        onToggleMic={handleToggleMic}
+                        onToggleSpeaker={() =>
+                          handleVoiceRepliesChange(!voiceReplies)
+                        }
+                      />
+                    ) : showOpening ? (
+                      <ChatOpening
+                        onPick={handlePick}
+                        onDemo={handleOpenDemoSetup}
+                      />
+                    ) : showDemoIntro ? (
+                      <DemoIntro />
+                    ) : (
+                      <ChatConversation
+                        messages={messages}
+                        pending={pending}
+                        canSpeak={demo ? false : canSpeak}
+                        speakingId={speakingId}
+                        onSpeak={handleSpeak}
+                        onStopSpeaking={handleStopSpeaking}
+                        stream={stream}
+                        settledId={settledId}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
 
-              {showVoice ? null : (
+                {/* The demo setup screen slides over the middle area; on the
+                    way out it reveals the screen behind it. `custom` feeds
+                    the leaving screen the CURRENT exit direction. */}
+                <AnimatePresence custom={demoExitDirection}>
+                  {mode === "demo-setup" ? (
+                    <DemoSetup
+                      key="demo-setup"
+                      name={demoName}
+                      instructions={demoInstructions}
+                      context={demoContext}
+                      exitDirection={demoExitDirection}
+                      onNameChange={setDemoName}
+                      onInstructionsChange={setDemoInstructions}
+                      onContextChange={setDemoContext}
+                      onStart={handleDemoStart}
+                      onBack={handleDemoBack}
+                    />
+                  ) : null}
+                </AnimatePresence>
+              </div>
+
+              {showVoice || mode === "demo-setup" ? null : (
                 <ChatInput
                   value={input}
                   onChange={setInput}
                   onSend={handleSend}
                   busy={pending}
+                  sendLocked={
+                    mode === "demo-chat" && demoLimitSeconds !== null
+                  }
                   canMic={canRecognize}
                   micActive={listening}
                   onMic={() => {
                     if (listening) stopRecognition();
                     else startRecognition();
                   }}
-                  canWave={canRecognize}
+                  canWave={demo ? false : canRecognize}
                   onWave={handleOpenVoice}
                   error={errorMessage}
+                  note={demo ? content.askAi.demo.note : undefined}
                 />
               )}
             </div>

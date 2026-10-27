@@ -163,6 +163,10 @@ function drain(
               released,
             );
           }
+          // The word above is released — it must leave the buffer too, or the
+          // next delta would release the same word a second time. The buffer
+          // keeps only the withheld whitespace run (it may still grow).
+          runStart = index;
           break;
         }
         // Flush releases the trailing whitespace as well.

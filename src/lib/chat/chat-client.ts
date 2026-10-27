@@ -58,6 +58,9 @@ type ServerEvent =
   | { type: "done" }
   | { type: "error"; code?: unknown };
 
+/** The raw parsed SSE event shape (shared with the demo client). */
+export type { ServerEvent };
+
 const SPECIALIST_AGENTS = ["Work", "Profile", "Contact"] as const;
 const STATUS_TOPICS = [
   "projects",
@@ -116,7 +119,8 @@ function parseStatus(event: {
   }
 }
 
-function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+/** Exported for the demo client, which parses the same SSE shape. */
+export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted) return true;
   if (typeof DOMException !== "undefined" && error instanceof DOMException) {
     return error.name === "AbortError";
@@ -124,7 +128,8 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-async function readRetryAfter(response: Response): Promise<number> {
+/** Exported for the demo client, which reads the same 429 shape. */
+export async function readRetryAfter(response: Response): Promise<number> {
   const header = Number(response.headers.get("retry-after"));
   if (Number.isFinite(header) && header > 0) return header;
 
@@ -139,7 +144,8 @@ async function readRetryAfter(response: Response): Promise<number> {
   return 60;
 }
 
-function parseEventFrame(frame: string): ServerEvent | null {
+/** Exported for the demo client, which parses the same frames. */
+export function parseEventFrame(frame: string): ServerEvent | null {
   for (const line of frame.split(/\r?\n/)) {
     if (!line || line.startsWith(":")) continue;
     if (!line.startsWith("data:")) continue;

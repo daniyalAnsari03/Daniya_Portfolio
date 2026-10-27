@@ -22,6 +22,11 @@ type ChatInputProps = {
   onSend: () => void;
   /** `true` while the assistant is preparing a reply — the send is disabled. */
   busy: boolean;
+  /**
+   * `true` while the demo retry window runs — the send is disabled so no
+   * request can fire; it clears itself when the wait passes.
+   */
+  sendLocked?: boolean;
   /** `false` when the browser cannot listen — the mic button is hidden. */
   canMic: boolean;
   /** `true` while the microphone is recording. */
@@ -33,6 +38,8 @@ type ChatInputProps = {
   onWave: () => void;
   /** A short inline message (e.g. a blocked microphone). */
   error?: string | null;
+  /** The quiet line under the input (defaults to the saved-chats note). */
+  note?: string;
 };
 
 /**
@@ -47,12 +54,14 @@ export default function ChatInput({
   onChange,
   onSend,
   busy,
+  sendLocked = false,
   canMic,
   micActive,
   onMic,
   canWave,
   onWave,
   error,
+  note = content.askAi.savedNote,
 }: ChatInputProps) {
   const reduce = useReducedMotion() ?? false;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -65,7 +74,7 @@ export default function ChatInput({
     element.style.height = `${Math.min(element.scrollHeight, MAX_INPUT_HEIGHT)}px`;
   }, [value]);
 
-  const canSend = value.trim().length > 0 && !busy;
+  const canSend = value.trim().length > 0 && !busy && !sendLocked;
 
   return (
     <div className="px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:px-5 sm:pb-[calc(env(safe-area-inset-bottom)+16px)]">
@@ -151,7 +160,7 @@ export default function ChatInput({
       </motion.div>
 
       <p className="mt-2 px-1 text-center text-[10px] text-chat-muted">
-        {content.askAi.savedNote}
+        {note}
       </p>
 
       {error ? (
