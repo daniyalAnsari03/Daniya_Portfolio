@@ -239,6 +239,23 @@ export const askAiMotion = {
   /** The three typing dots pulse, one after the other. */
   typing: { duration: 1.1, stagger: 0.18 },
   /**
+   * The "View on WhatsApp" skin (docs/fix.txt): the skin reads every skin
+   * -specific timing from here — the header status crossfade, the typing
+   * dots and the small rises of the skin-only elements (note chip, chips,
+   * typing bubble). Bubble entry itself reuses `message` above. The hex
+   * values live only in globals.css; motion stays opacity + transform.
+   */
+  wa: {
+    /** The online / typing… status crossfade (seconds). */
+    statusFade: 0.25,
+    /** One full pulse of a typing dot (seconds). */
+    dotsCycle: 1.2,
+    /** Delay between two typing dots (seconds). */
+    dotsStagger: 0.2,
+    /** How far skin-only elements rise on their entrance (px). */
+    bubbleDistance: 10,
+  },
+  /**
    * The in-chat Discovery form card that appears under a settled assistant
    * answer: it fades in and rises. The card entrance reads these tokens.
    */

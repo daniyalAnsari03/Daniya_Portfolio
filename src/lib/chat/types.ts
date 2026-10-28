@@ -12,6 +12,12 @@ export type ChatMessage = {
   role: ChatRole;
   text: string;
   /**
+   * When the message was created (ISO string). In memory only — the WhatsApp
+   * skin renders it as a `HH:MM` timestamp inside each bubble; it is never
+   * persisted anywhere.
+   */
+  createdAt: string;
+  /**
    * A streamed answer that already finished on screen: render it as plain
    * text with no entrance animation (the words were already shown).
    */

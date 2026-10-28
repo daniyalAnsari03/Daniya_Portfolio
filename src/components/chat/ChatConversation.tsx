@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { cubicBezier, motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
-import { CheckIcon, CopyIcon, VolumeIcon, VolumeOffIcon } from "@/components/icons";
+import {
+  CheckIcon,
+  CopyIcon,
+  DoubleTickIcon,
+  TickIcon,
+  VolumeIcon,
+  VolumeOffIcon,
+} from "@/components/icons";
 import ChatLogo from "./ChatLogo";
 import ContactFormCard from "./ContactFormCard";
 import StreamedAnswer, { MarkdownText } from "./StreamedAnswer";
@@ -12,6 +19,15 @@ import ThinkingSteps from "./ThinkingSteps";
 import { markdownToPlainText } from "@/lib/chat/inline-markdown";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatStreamState } from "@/lib/chat/stream-text";
+
+type ChatStarter = {
+  title: string;
+  ordersLabel: string;
+  orders: readonly string[];
+  productsLabel: string;
+  products: readonly string[];
+  chips: readonly string[];
+};
 
 type ChatConversationProps = {
   messages: ChatMessage[];
@@ -27,6 +43,21 @@ type ChatConversationProps = {
   stream: ChatStreamState | null;
   /** The answer that just settled — its buttons fade in a beat later. */
   settledId: string | null;
+  /**
+   * The store demo's "Try this" hint under the static intro: sample orders,
+   * product names and starter chips. Hidden after the first user message —
+   * the drawer only passes it while the intro is the newest message.
+   */
+  starter?: ChatStarter | null;
+  onStarterPick?: (text: string) => void;
+  /**
+   * The WhatsApp skin (docs/fix.txt): a demo-only look where the same
+   * conversation renders as bubbles on the WhatsApp palette. Steps, the
+   * thinking logo, the step summary and the speaker/copy buttons are hidden
+   * in this skin only; the word-by-word streaming and every behaviour are
+   * untouched.
+   */
+  skin?: boolean;
 };
 
 /** The user must be this close to the bottom to be "following" the reply. */
@@ -95,6 +126,217 @@ const ANSWER_CLASS =
  * state with no animation at all (past / re-mounted messages and errors).
  */
 type AssistantRowState = "live" | "settling" | "final";
+
+/* -------------------------------------------------------------------------
+   The WhatsApp skin (docs/fix.txt)
+
+   The palette lives only in globals.css (--wa-*); no hex value appears
+   here. All the skin timings come from `askAiMotion.wa` and bubble entries
+   reuse `askAiMotion.message`; only opacity and transform animate.
+   ------------------------------------------------------------------------- */
+
+/** The delivery state of one visitor bubble. */
+type WaTick = "single" | "double";
+
+/** `hour:minute` in the browser's own locale — the skin's bubble time. */
+const waTimeFormatter = new Intl.DateTimeFormat([], {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function waTimeLabel(iso: string | undefined): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : waTimeFormatter.format(date);
+}
+
+/** The permanent sticky note: always visible at the top of the canvas. */
+function WaNoteChip() {
+  const reduce = useReducedMotion() ?? false;
+
+  return (
+    <motion.div
+      initial={{
+        opacity: 0,
+        y: reduce ? 0 : askAiMotion.wa.bubbleDistance,
+      }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduce ? askAiMotion.fade : askAiMotion.message.duration,
+        ease: askAiMotion.easeOut,
+      }}
+      className="mt-2 max-w-[calc(100%-24px)] rounded-[10px] bg-wa-note px-2.5 py-1.5 text-center text-[10px] leading-snug text-wa-note-text [overflow-wrap:anywhere]"
+    >
+      {content.askAi.whatsapp.note}
+    </motion.div>
+  );
+}
+
+/** The three pulsing dots shown while a reply is pending before its first word. */
+function WaTypingBubble({ reduce }: { reduce: boolean }) {
+  return (
+    <motion.div
+      initial={{
+        opacity: 0,
+        y: reduce ? 0 : askAiMotion.wa.bubbleDistance,
+      }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduce
+          ? askAiMotion.fade
+          : askAiMotion.send.bubble.duration,
+        ease: reduce ? askAiMotion.easeOut : askAiMotion.send.ease,
+        delay: reduce ? 0 : askAiMotion.send.answerDelay,
+      }}
+      className="flex justify-start"
+    >
+      <div
+        aria-hidden="true"
+        className="flex items-center gap-1 rounded-[8px] bg-wa-in px-3 py-2.5"
+      >
+        {[0, 1, 2].map((index) => (
+          <motion.span
+            key={index}
+            className="h-1.5 w-1.5 rounded-full bg-wa-meta"
+            animate={{ opacity: [0.3, 0.9, 0.3] }}
+            transition={{
+              duration: askAiMotion.wa.dotsCycle,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: index * askAiMotion.wa.dotsStagger,
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+/** One entrance transition for a skin bubble. */
+function waEnterTransition(reduce: boolean, delayed = false) {
+  return {
+    duration: reduce ? askAiMotion.fade : askAiMotion.message.duration,
+    ease: reduce ? askAiMotion.easeOut : askAiMotion.easeOut,
+    delay: reduce || !delayed ? 0 : askAiMotion.send.answerDelay,
+  };
+}
+
+/** The delivery ticks of a visitor bubble — one gray or two blue checks. */
+function WaTicks({ tick }: { tick: WaTick }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex items-center ${
+        tick === "double" ? "text-wa-tick" : "text-wa-meta"
+      }`}
+    >
+      {tick === "double" ? (
+        <DoubleTickIcon className="h-3 w-3.5" />
+      ) : (
+        <TickIcon className="h-2.5 w-2.5" />
+      )}
+    </span>
+  );
+}
+
+function WaUserBubble({
+  message,
+  tick,
+  reduce,
+  fresh,
+}: {
+  message: ChatMessage;
+  tick: WaTick;
+  reduce: boolean;
+  fresh: boolean;
+}) {
+  return (
+    <motion.div
+      initial={
+        fresh
+          ? { opacity: 0, y: reduce ? 0 : askAiMotion.message.distance }
+          : false
+      }
+      animate={{ opacity: 1, y: 0 }}
+      transition={waEnterTransition(reduce)}
+      className="flex justify-end"
+    >
+      <div className="max-w-[80%] rounded-[8px] rounded-br-[16px] bg-wa-out px-2.5 py-1.5 text-[13.5px] leading-relaxed text-wa-out-text [overflow-wrap:anywhere]">
+        <p className="whitespace-pre-wrap">{message.text}</p>
+        <div
+          className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] leading-none ${
+            tick === "double" ? "text-wa-out-meta" : "text-wa-meta"
+          }`}
+        >
+          <span>{waTimeLabel(message.createdAt)}</span>
+          <WaTicks tick={tick} />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/** One settled (or committed) assistant answer as an incoming bubble. */
+function WaAssistantBubble({ message }: { message: ChatMessage }) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[80%] rounded-[8px] rounded-bl-[16px] bg-wa-in px-2.5 py-1.5 text-[13.5px] leading-relaxed text-wa-in-text [overflow-wrap:anywhere]">
+        <p className="whitespace-pre-wrap">
+          <MarkdownText text={message.text} />
+        </p>
+        <div className="mt-0.5 flex items-center justify-end text-[10px] leading-none text-wa-meta">
+          <span>{waTimeLabel(message.createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The "Try this" quick replies of the store demo, in the skin palette. */
+function WaStarterChips({
+  starter,
+  onPick,
+  reduce,
+}: {
+  starter: ChatStarter;
+  onPick: (text: string) => void;
+  reduce: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{
+        opacity: 0,
+        y: reduce ? 0 : askAiMotion.wa.bubbleDistance,
+      }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...waEnterTransition(reduce, true) }}
+      className="flex flex-col gap-2.5"
+    >
+      <span className="text-[10px] font-medium uppercase leading-none tracking-[0.18em] text-wa-meta">
+        {starter.title}
+      </span>
+
+      <p className="text-[12px] leading-relaxed text-wa-meta [overflow-wrap:anywhere]">
+        {starter.ordersLabel}: {starter.orders.join(", ")}
+        {" · "}
+        {starter.productsLabel}: {starter.products.join(", ")}
+      </p>
+
+      <div className="flex max-w-full flex-wrap gap-2">
+        {starter.chips.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            onClick={() => onPick(chip)}
+            className="rounded-full border border-wa-chip-border bg-wa-chip-bg px-3 py-1.5 text-[13px] leading-tight text-wa-chip-text transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wa-chip-border"
+          >
+            {chip}
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 /**
  * Row 1 = the "ASK AI" label, row 2 = the logo + the agent steps side by side,
@@ -193,6 +435,9 @@ export default function ChatConversation({
   onStopSpeaking,
   stream,
   settledId,
+  starter,
+  onStarterPick,
+  skin = false,
 }: ChatConversationProps) {
   const reduce = useReducedMotion() ?? false;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -336,6 +581,97 @@ export default function ChatConversation({
 
   const pendingKey = stream?.id ?? "initial";
 
+  if (skin) {
+    const lastUserIndex = (() => {
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        if (messages[index].role === "user") return index;
+      }
+      return -1;
+    })();
+    // The bot's first word has arrived: every visitor bubble flips to the
+    // double ticks from that moment on.
+    const replyStarted = Boolean(
+      stream && stream.tokens.some((token) => token.kind === "word"),
+    );
+    const streamVisible = Boolean(
+      stream && (stream.tokens.length > 0 || stream.error),
+    );
+
+    return (
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        data-lenis-prevent
+        className="flex-1 overflow-y-auto overscroll-contain bg-wa-bg pb-2"
+      >
+        <p className="sr-only" role="status" aria-live="polite">
+          {pending ? content.askAi.thinkingLabel : ""}
+        </p>
+
+        {/* The permanent sticky note — always visible at the top. */}
+        <div className="sticky top-0 z-10 flex justify-center px-4">
+          <WaNoteChip />
+        </div>
+
+        <div className="flex flex-col gap-2 px-4 pb-2 pt-1.5 sm:px-5">
+          {messages.map((message, index) =>
+            message.role === "user" ? (
+              <WaUserBubble
+                key={message.id}
+                message={message}
+                tick={
+                  index === lastUserIndex && !replyStarted && pending
+                    ? "single"
+                    : "double"
+                }
+                reduce={reduce}
+                fresh={index === messages.length - 1}
+              />
+            ) : (
+              <WaAssistantBubble key={message.id} message={message} />
+            ),
+          )}
+
+          {starter && onStarterPick ? (
+            <WaStarterChips
+              starter={starter}
+              onPick={onStarterPick}
+              reduce={reduce}
+            />
+          ) : null}
+
+          {stream && streamVisible ? (
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: reduce ? 0 : askAiMotion.message.distance,
+              }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={waEnterTransition(reduce, true)}
+              className="flex justify-start"
+            >
+              <div className="max-w-[80%] rounded-[8px] rounded-bl-[16px] bg-wa-in px-2.5 py-1.5 text-[13.5px] leading-relaxed text-wa-in-text [overflow-wrap:anywhere]">
+                {stream.tokens.length > 0 ? (
+                  <StreamedAnswer tokens={stream.tokens} reduce={reduce} />
+                ) : null}
+                {stream.error ? (
+                  <p className="whitespace-pre-wrap">
+                    <MarkdownText text={stream.error} />
+                  </p>
+                ) : null}
+                <div className="mt-0.5 flex items-center justify-end text-[10px] leading-none text-wa-meta">
+                  <span>{waTimeLabel(new Date().toISOString())}</span>
+                </div>
+              </div>
+            </motion.div>
+          ) : pending ? (
+            <WaTypingBubble reduce={reduce} />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={scrollRef}
@@ -466,6 +802,41 @@ export default function ChatConversation({
             </motion.div>
           ),
         )}
+
+        {starter && onStarterPick ? (
+          <motion.div
+            initial={{ opacity: 0, y: reduce ? 0 : askAiMotion.message.distance }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: reduce ? askAiMotion.fade : askAiMotion.message.duration,
+              ease: askAiMotion.easeOut,
+            }}
+            className="flex flex-col gap-2.5"
+          >
+            <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-chat-muted">
+              {starter.title}
+            </span>
+
+            <p className="max-w-[85%] text-[12px] leading-relaxed text-chat-muted [overflow-wrap:anywhere]">
+              {starter.ordersLabel}: {starter.orders.join(", ")}
+              {" · "}
+              {starter.productsLabel}: {starter.products.join(", ")}
+            </p>
+
+            <div className="flex max-w-full flex-wrap gap-2">
+              {starter.chips.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => onStarterPick(chip)}
+                  className="rounded-full bg-chat-control px-3 py-1.5 text-[13px] leading-tight text-chat-text transition-colors hover:text-chat-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        ) : null}
 
         {stream ? (
           <motion.div

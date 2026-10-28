@@ -45,9 +45,13 @@ type DemoSetupProps = {
 };
 
 const LABEL_CLASS =
-  "mb-1.5 block text-[11px] font-medium uppercase tracking-[0.14em] text-chat-muted";
-const FIELD_CLASS =
-  "w-full rounded-[12px] bg-chat-input px-3 py-2.5 text-[16px] leading-snug text-chat-text ring-1 ring-chat-border outline-none placeholder:text-chat-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent sm:text-[15px]";
+  "mb-1.5 block text-[11px] font-medium uppercase tracking-[0.1em] text-chat-muted md:tracking-[0.14em]";
+/** Colours, radius, ring and type only — padding/heights are per field so
+ * the compact mobile sizes and the md+ sizes never fight over one property. */
+const FIELD_BASE =
+  "w-full rounded-[12px] bg-chat-input text-[16px] leading-[1.35] text-chat-text ring-1 ring-chat-border outline-none placeholder:text-chat-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent md:leading-snug md:text-[15px]";
+const NAME_FIELD_CLASS = `${FIELD_BASE} h-11 px-3.5 md:h-auto md:px-3 md:py-2.5`;
+const AREA_FIELD_CLASS = `${FIELD_BASE} resize-none px-3 py-2.5`;
 
 function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) {
@@ -317,7 +321,7 @@ export default function DemoSetup({
       : null;
 
   const OPTION_BASE_CLASS =
-    "flex h-7 items-center rounded-full px-3 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent";
+    "flex h-9 flex-1 items-center justify-center whitespace-nowrap rounded-full px-3 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent md:h-7 md:flex-none md:text-[12px]";
   const optionClass = (active: boolean) =>
     active
       ? `${OPTION_BASE_CLASS} bg-chat-control text-chat-text`
@@ -368,13 +372,16 @@ export default function DemoSetup({
         staggerChildren: reduce ? 0 : askAiMotion.demoItems.stagger,
       }}
       data-lenis-prevent
-      className="absolute inset-0 z-10 flex flex-col overflow-y-auto overscroll-contain rounded-l-[18px] bg-chat-surface px-4 pb-4 pt-2 sm:px-5"
+      className="absolute inset-0 z-10 flex flex-col overflow-y-auto overscroll-contain rounded-l-[18px] bg-chat-surface px-4 pb-3 pt-3 md:px-5 md:pb-4 md:pt-2"
     >
-      <motion.p variants={itemVariants} className="text-[13px] leading-relaxed text-chat-muted">
+      <motion.p
+        variants={itemVariants}
+        className="mb-2 text-[14px] leading-tight text-chat-muted md:mb-0 md:text-[13px] md:leading-relaxed"
+      >
         {demo.helper}
       </motion.p>
 
-      <div className="mt-5 flex flex-col gap-5">
+      <div className="mt-4 flex flex-col gap-4 md:mt-5 md:gap-5">
         <motion.div variants={itemVariants}>
           <label htmlFor="demo-name" className={LABEL_CLASS}>
             {demo.nameLabel}
@@ -386,7 +393,7 @@ export default function DemoSetup({
             maxLength={MAX_NAME}
             onChange={(event) => onNameChange(event.target.value)}
             placeholder={demo.namePlaceholder}
-            className={FIELD_CLASS}
+            className={NAME_FIELD_CLASS}
           />
         </motion.div>
 
@@ -399,7 +406,7 @@ export default function DemoSetup({
             value={instructions}
             onChange={(event) => handleInstructionsChange(event.target.value)}
             rows={5}
-            className={`${FIELD_CLASS} resize-none`}
+            className={`${AREA_FIELD_CLASS} h-[110px] overflow-y-auto md:h-auto`}
           />
           {/* Counter + limit notice: the row always exists (reserved height),
               so the notice fading in never pushes the layout. */}
@@ -414,16 +421,18 @@ export default function DemoSetup({
         </motion.div>
 
         {/* Context: the segmented control picks the source, but both options
-            edit the same context state — switching never clears it. */}
+            edit the same context state — switching never clears it. Below md
+            the label sits ABOVE the control and the control takes the full
+            width with two equal options; side by side stays from md up. */}
         <motion.div variants={itemVariants}>
-          <div className="flex min-h-[28px] items-center justify-between gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-chat-muted">
+          <div className="flex flex-col gap-1.5 md:min-h-[28px] md:flex-row md:items-center md:justify-between md:gap-3">
+            <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-chat-muted md:tracking-[0.14em]">
               {demo.contextOptionsLabel}
             </span>
             <div
               role="tablist"
               aria-label={demo.contextOptionsLabel}
-              className="flex rounded-full bg-chat-input p-0.5 ring-1 ring-chat-border"
+              className="flex w-full rounded-full bg-chat-input p-0.5 ring-1 ring-chat-border md:w-auto"
             >
               <button
                 type="button"
@@ -500,7 +509,7 @@ export default function DemoSetup({
                     <button
                       type="button"
                       onClick={handleRemovePdf}
-                      className="flex h-10 shrink-0 items-center rounded-full bg-chat-control px-4 text-[13px] font-medium text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
+                      className="flex h-9 shrink-0 items-center rounded-full bg-chat-control px-4 text-[13px] font-medium text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent md:h-10"
                     >
                       {demo.pdfRemove}
                     </button>
@@ -517,7 +526,7 @@ export default function DemoSetup({
                       input.click();
                     }
                   }}
-                  className="flex h-11 w-full items-center justify-center rounded-[12px] bg-chat-control text-[14px] font-medium text-chat-control-fg ring-1 ring-chat-border transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-40"
+                  className="flex h-10 w-full items-center justify-center rounded-[12px] bg-chat-control text-[14px] font-medium text-chat-control-fg ring-1 ring-chat-border transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-40 md:h-11"
                 >
                   {demo.pdfChoose}
                 </button>
@@ -550,7 +559,7 @@ export default function DemoSetup({
               value={context}
               onChange={(event) => applyContext(event.target.value)}
               rows={8}
-              className={`${FIELD_CLASS} mt-2 resize-none`}
+              className={`${AREA_FIELD_CLASS} mt-2 h-[140px] overflow-y-auto md:h-auto`}
             />
 
             {/* Counter + limit notice — the same row both textareas share. */}
@@ -568,12 +577,12 @@ export default function DemoSetup({
 
       <motion.div
         variants={itemVariants}
-        className="mt-6 flex items-center gap-2 pb-[calc(env(safe-area-inset-bottom)+4px)]"
+        className="mt-4 flex items-center gap-2.5 pb-[calc(env(safe-area-inset-bottom)+8px)] md:mt-6 md:gap-2 md:pb-[calc(env(safe-area-inset-bottom)+4px)]"
       >
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 items-center rounded-full bg-chat-control px-5 text-[14px] font-medium text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
+          className="flex h-11 items-center rounded-full bg-chat-control px-5 text-[14px] font-medium text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent md:h-10"
         >
           {demo.backLabel}
         </button>
@@ -581,7 +590,7 @@ export default function DemoSetup({
           type="button"
           onClick={onStart}
           disabled={!canStart}
-          className="ml-auto flex h-10 items-center rounded-full bg-chat-primary px-5 text-[14px] font-medium text-chat-primary-fg transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-30"
+          className="ml-auto flex h-11 items-center rounded-full bg-chat-primary px-5 text-[14px] font-medium text-chat-primary-fg transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-30 md:h-10"
         >
           {demo.startLabel}
         </button>

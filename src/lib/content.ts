@@ -126,6 +126,8 @@ export const content = {
         about: "Reading his About details",
         contact: "Finding his contact details",
         notes: "Checking extra notes",
+        order: "Checking order…",
+        stock: "Checking stock…",
       },
       writing: "Writing the answer",
       summaryChain: "{chain} · {count} handoff",
@@ -192,6 +194,49 @@ export const content = {
         server: "Something went wrong. Please try again in a moment.",
         invalid: "That message couldn't be sent. Please shorten it and try again.",
       },
+    },
+    // The "Store demo" mode inside the same drawer (docs/fix.txt). The
+    // visitor taps the row and chats immediately with a fake store's support
+    // assistant that answers only from two local tools over hardcoded data,
+    // through POST /api/chat/demo-store. Fully isolated: no setup, no MCP,
+    // no session, nothing saved. Fixed copy — never admin-managed.
+    storeDemo: {
+      openingRow: "Try the store demo",
+      headerTitle: "Demo Store",
+      title: "Demo Store",
+      // The normal-view (non-WhatsApp) input placeholder for this mode only —
+      // the main chat, the paste/PDF demo and the WhatsApp skin are untouched.
+      inputPlaceholder: "Ask about an order or a product...",
+      // The static first assistant message (no API call behind it).
+      intro:
+        "Hi! This is a demo store. Ask me about an order number or a product and I will check the store data for you.",
+      chatIntro: "Tap a suggestion below to start the store chat.",
+      starterTitle: "Try this",
+      starterOrdersLabel: "Orders",
+      starterProductsLabel: "Products",
+      starterChips: [
+        "Where is my order 1024?",
+        "Is the Hoodie in stock?",
+        "Do you have Sneakers?",
+      ],
+      steps: {
+        chip: "Store",
+        writing: "Writing answer",
+        summaryTool: "{agent} · {count} tool",
+        summaryTools: "{agent} · {count} tools",
+        summaryDirect: "Store agent · answered directly",
+      },
+    },
+    // The "View on WhatsApp" skin (docs/fix.txt). An in-memory visual toggle
+    // for the demo-like modes only — the visitor, the normal chat and the
+    // Store demo's data are untouched. Fixed copy — never admin-managed.
+    whatsapp: {
+      toggleOn: "View on WhatsApp",
+      toggleOff: "Back to normal view",
+      online: "online",
+      typing: "typing…",
+      note: "Demo: not connected to real WhatsApp",
+      inputPlaceholder: "Type a message",
     },
     // The in-chat "Discovery form" wizard (ContactFormCard). It is opened by
     // the Contact agent's `show_contact_form` signal and submits through

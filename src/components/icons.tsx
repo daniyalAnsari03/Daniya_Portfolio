@@ -338,3 +338,106 @@ export function DemoIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/**
+ * The header's "Try the store demo" button: a simple shop outline (an awning
+ * over a storefront). Drawn in-house — the same 1.8 stroke as the other
+ * header icons, currentColor, no fill.
+ */
+export function StoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M4.5 9.5v8a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-8" />
+      <path d="M4 5.5h16l1 3a2.4 2.4 0 0 1-4.8 0 2.4 2.4 0 0 1-4.8 0 2.4 2.4 0 0 1-4.8 0 2.4 2.4 0 0 1-4.3 1.1Z" />
+      <path d="M10 19v-4.5h4V19" />
+    </svg>
+  );
+}
+
+/**
+ * The "View on WhatsApp" toggle: a simple chat-bubble outline with three
+ * dots. Drawn in-house — the same 1.8 stroke as the other header icons,
+ * currentColor, no fill.
+ */
+export function ChatBubbleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M12 4a8 8 0 0 1 8 8 8 8 0 0 1-8 8H5.5c-.9 0-1.4-1-.9-1.7l1.3-1.8h-.4A8 8 0 0 1 12 4Z" />
+      <path d="M8.5 12h.01M12 12h.01M15.5 12h.01" />
+    </svg>
+  );
+}
+
+/** The WhatsApp send button: a paper-plane outline, drawn in-house. */
+export function SendPlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M20.5 3.5 3.9 10.2c-.7.3-.7 1.3 0 1.5l6.7 2.2 2.2 6.7c.2.7 1.2.7 1.5 0L20.5 3.5Z" />
+      <path d="m10.6 13.9 4.2-4.2" />
+    </svg>
+  );
+}
+
+/** One delivery tick (single check). Colour comes from the parent. */
+export function TickIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="m2.5 8.5 3 3 7-7.5" />
+    </svg>
+  );
+}
+
+/** Two overlapping delivery ticks. Colour comes from the parent. */
+export function DoubleTickIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 20 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="m1.5 8.5 3 3 6.5-7.5" />
+      <path d="m8.5 11 6.5-7" />
+    </svg>
+  );
+}

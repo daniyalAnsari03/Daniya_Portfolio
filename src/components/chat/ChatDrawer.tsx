@@ -16,6 +16,11 @@ import {
   type ChatStreamError,
 } from "@/lib/chat/chat-client";
 import { streamDemo } from "@/lib/chat/demo-client";
+import { streamStoreDemo } from "@/lib/chat/store-demo-client";
+import {
+  STORE_DEMO_SAMPLE_ORDER_NUMBERS,
+  STORE_DEMO_SAMPLE_PRODUCT_NAMES,
+} from "@/lib/chat/store-demo-data";
 import { formatRateLimitLine } from "@/lib/chat/rate-limit-text";
 import type { ChatStatus } from "@/lib/chat/status-events";
 import {
@@ -61,10 +66,30 @@ const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * The three drawer modes: the normal "Ask AI" chat about Daniyal, the demo
- * setup screen and the demo chat itself (docs/fix.txt).
+ * The drawer modes: the normal "Ask AI" chat about Daniyal, the demo setup
+ * screen, the demo chat itself and the store demo chat (docs/fix.txt).
  */
-type DrawerMode = "daniyal" | "demo-setup" | "demo-chat";
+type DrawerMode = "daniyal" | "demo-setup" | "demo-chat" | "store-demo";
+
+/** The two chat modes that send their own in-memory history to the server. */
+function isDemoLikeMode(mode: DrawerMode): boolean {
+  return mode === "demo-chat" || mode === "store-demo";
+}
+
+/**
+ * Avatar initials from the demo name: the first letter of the first two
+ * words, uppercase ("Demo Store" -> "DS"). A single word uses its first two
+ * letters ("Shop" -> "SH"). Spaces are trimmed and empty words are ignored.
+ */
+function chatInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
 
 const DEFAULT_DEMO_INSTRUCTIONS =
   content.askAi.demo.setup.defaultInstructions;
@@ -186,6 +211,14 @@ export default function ChatDrawer({
     instructions: string;
     context: string;
   } | null>(null);
+
+  /**
+   * The "View on WhatsApp" skin (docs/fix.txt): in-memory visual state for
+   * the demo-like modes only. Toggling it only swaps the presentation — the
+   * conversation, any in-flight reply and the theme are untouched. It resets
+   * on Back, New chat, close and whenever a demo mode is entered or left.
+   */
+  const [whatsappView, setWhatsAppView] = useState(false);
 
   // The conversation — in memory only, never persisted.
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -333,6 +366,7 @@ export default function ChatDrawer({
       id: `chat-${idRef.current++}`,
       role: "assistant",
       text,
+      createdAt: new Date().toISOString(),
       settled: true,
       steps: steps.length > 0 ? steps : undefined,
       // The Contact agent asked for the in-chat form while this answer streamed.
@@ -409,10 +443,11 @@ export default function ChatDrawer({
       doneRef.current = true;
 
       // A demo 429 opens the client-side send lock for the retry window; the
-      // limit itself stays on the server.
+      // limit itself stays on the server. Both demo shares use their own
+      // server budget, but the client lock is shared.
       if (
         error.code === "rate_limited" &&
-        modeRef.current === "demo-chat"
+        isDemoLikeMode(modeRef.current)
       ) {
         const seconds = error.retryAfterSeconds ?? 60;
         demoLimitUntilRef.current = Date.now() + seconds * 1000;
@@ -425,7 +460,7 @@ export default function ChatDrawer({
         id: current?.id ?? `chat-${idRef.current}`,
         tokens,
         steps: [],
-        error: formatChatError(error, modeRef.current === "demo-chat"),
+        error: formatChatError(error, isDemoLikeMode(modeRef.current)),
         started: tokens.some((token) => token.kind === "word"),
         settling: false,
         text: fullTextRef.current,
@@ -586,6 +621,7 @@ export default function ChatDrawer({
           id: current.id,
           role: "assistant",
           text: combined,
+          createdAt: new Date().toISOString(),
           settled: true,
           error: Boolean(current.error),
         };
@@ -650,10 +686,13 @@ export default function ChatDrawer({
       commitStream();
       setSpeakingId(null);
 
-      // The demo keeps its own short history in the same message list; only
-      // settled, error-free turns ride along (at most 10).
-      const demoMode = modeRef.current === "demo-chat";
-      const demoHistory = demoMode
+      // The demo modes keep their own short history in the same message
+      // list; only settled, error-free turns ride along (at most 10). The
+      // server never stores them — the browser sends them with each request.
+      const runMode = modeRef.current;
+      const demoLike = isDemoLikeMode(runMode);
+      const storeMode = runMode === "store-demo";
+      const demoHistory = demoLike
         ? messagesRef.current
             .filter((message) => message.settled && !message.error)
             .slice(-10)
@@ -664,6 +703,7 @@ export default function ChatDrawer({
         id: `chat-${idRef.current++}`,
         role: "user",
         text: trimmed,
+        createdAt: new Date().toISOString(),
       };
 
       const nextMessages = [...messagesRef.current, userMessage];
@@ -720,6 +760,18 @@ export default function ChatDrawer({
         if (mode === "animate") flushTail();
         else if (canSpeakRef.current) player.flush();
       };
+      const handleStreamStatus = (status: ChatStatus) => {
+        if (controller.signal.aborted) return;
+        if (requestId !== requestIdRef.current) return;
+        // Voice mode ignores the live steps entirely.
+        if (mode === "collect") return;
+
+        stepsRef.current = [...stepsRef.current, status];
+        const current = streamRef.current;
+        if (!current) return;
+        applyStream({ ...current, steps: stepsRef.current.slice(), settling: false });
+      };
+
       const handleStreamError = (error: ChatStreamError) => {
         if (controller.signal.aborted) return;
         if (requestId !== requestIdRef.current) return;
@@ -728,7 +780,17 @@ export default function ChatDrawer({
         else player.stop();
       };
 
-      if (demoMode) {
+      if (storeMode) {
+        await streamStoreDemo({
+          message: trimmed,
+          history: demoHistory,
+          signal: controller.signal,
+          onStatus: handleStreamStatus,
+          onDelta: handleStreamDelta,
+          onDone: handleStreamDone,
+          onError: handleStreamError,
+        });
+      } else if (demoLike) {
         const config = demoConfigRef.current;
         if (!config) return null;
 
@@ -751,17 +813,7 @@ export default function ChatDrawer({
           onSession: (id) => {
             sessionIdRef.current = id;
           },
-          onStatus: (status) => {
-            if (controller.signal.aborted) return;
-            if (requestId !== requestIdRef.current) return;
-            // Voice mode ignores the live steps entirely.
-            if (mode === "collect") return;
-
-            stepsRef.current = [...stepsRef.current, status];
-            const current = streamRef.current;
-            if (!current) return;
-            applyStream({ ...current, steps: stepsRef.current.slice(), settling: false });
-          },
+          onStatus: handleStreamStatus,
           onUi: () => {
             if (controller.signal.aborted) return;
             if (requestId !== requestIdRef.current) return;
@@ -792,6 +844,7 @@ export default function ChatDrawer({
           id: `chat-${idRef.current++}`,
           role: "assistant",
           text: reply,
+          createdAt: new Date().toISOString(),
           settled: true,
         };
         const next = [...messagesRef.current, assistantMessage];
@@ -814,9 +867,9 @@ export default function ChatDrawer({
   );
 
   const handleSend = useCallback(() => {
-    // While the demo retry window runs, the send must not fire a request.
+    // While a demo retry window runs, the send must not fire a request.
     if (
-      modeRef.current === "demo-chat" &&
+      isDemoLikeMode(modeRef.current) &&
       demoLimitUntilRef.current !== null &&
       Date.now() < demoLimitUntilRef.current
     ) {
@@ -935,6 +988,7 @@ export default function ChatDrawer({
 
     demoConfigRef.current = { name, instructions: finalInstructions, context };
     setDemoExitDirection("forward");
+    setWhatsAppView(false);
     setMode("demo-chat");
   }, [demoContext, demoInstructions, demoName, setMode]);
 
@@ -953,6 +1007,50 @@ export default function ChatDrawer({
     setDemoContext("");
     setInput("");
     setDemoExitDirection("back");
+    setWhatsAppView(false);
+    setMode("daniyal");
+  }, [abortStream, cancelRecognition, player, setMode]);
+
+  /**
+   * The store demo opens IMMEDIATELY — no setup screen. The static intro
+   * message (no API call behind it) is seeded as the first assistant turn
+   * and only the browser memory keeps the conversation.
+   */
+  const handleOpenStoreDemo = useCallback(() => {
+    // Same mode-switch rule as every other mode change.
+    abortStream();
+    cancelRecognition();
+    player.stop();
+    setSpeakingId(null);
+    setInput("");
+    const introMessage: ChatMessage = {
+      id: `chat-${idRef.current++}`,
+      role: "assistant",
+      text: content.askAi.storeDemo.intro,
+      createdAt: new Date().toISOString(),
+      settled: true,
+    };
+    messagesRef.current = [introMessage];
+    setMessages(messagesRef.current);
+    setWhatsAppView(false);
+    setMode("store-demo");
+  }, [abortStream, cancelRecognition, player, setMode]);
+
+  /**
+   * Back from the store demo to the main Ask AI opening screen: aborts any
+   * in-flight request and clears the store history. The paste/PDF demo's
+   * setup values are untouched.
+   */
+  const handleStoreBack = useCallback(() => {
+    abortStream();
+    cancelRecognition();
+    player.stop();
+    setSpeakingId(null);
+    messagesRef.current = [];
+    setMessages([]);
+    setInput("");
+    setDemoExitDirection("back");
+    setWhatsAppView(false);
     setMode("daniyal");
   }, [abortStream, cancelRecognition, player, setMode]);
 
@@ -968,6 +1066,7 @@ export default function ChatDrawer({
     messagesRef.current = [];
     setMessages([]);
     setInput("");
+    setWhatsAppView(false);
     setSpeakingId(null);
     setVoiceMode(false);
     voiceModeRef.current = false;
@@ -1065,6 +1164,7 @@ export default function ChatDrawer({
     cancelRecognition();
     player.stop();
     setSpeakingId(null);
+    setWhatsAppView(false);
     onClose();
   }, [abortStream, cancelRecognition, onClose, player]);
 
@@ -1147,6 +1247,26 @@ export default function ChatDrawer({
     mode === "daniyal" && !voiceMode && messages.length === 0 && !stream;
   const showDemoIntro =
     mode === "demo-chat" && !voiceMode && messages.length === 0 && !stream;
+  const showStoreIntro =
+    mode === "store-demo" && !voiceMode && messages.length === 0 && !stream;
+
+  /**
+   * The WhatsApp skin is available inside the demo-like modes only: the
+   * normal chat, the voice mode and the setup screen are always rendered in
+   * the normal chat look.
+   */
+  const waEnabled = isDemoLikeMode(mode);
+  const waView = waEnabled && whatsappView;
+  const toggleWhatsAppView = useCallback(
+    () => setWhatsAppView((current) => !current),
+    [],
+  );
+  /** Display name + initials in the WhatsApp header. */
+  const waName =
+    mode === "store-demo"
+      ? content.askAi.storeDemo.headerTitle
+      : demoName.trim() || content.askAi.demo.badge;
+  const waInitials = chatInitials(waName);
 
   /**
    * Which middle screen is showing — the crossfade key. The outgoing screen
@@ -1160,16 +1280,20 @@ export default function ChatDrawer({
       ? "opening"
       : showDemoIntro
         ? "demo-intro"
-        : "conversation";
+        : showStoreIntro
+          ? "store-intro"
+          : "conversation";
 
   const headerTitle =
-    mode === "daniyal"
-      ? showVoice
-        ? content.askAi.voiceTitle
-        : content.askAi.title
-      : mode === "demo-setup"
-        ? content.askAi.demo.setup.title
-        : demoName.trim() || content.askAi.demo.badge;
+    mode === "store-demo"
+      ? content.askAi.storeDemo.headerTitle
+      : mode === "daniyal"
+        ? showVoice
+          ? content.askAi.voiceTitle
+          : content.askAi.title
+        : mode === "demo-setup"
+          ? content.askAi.demo.setup.title
+          : demoName.trim() || content.askAi.demo.badge;
 
   return (
     <AnimatePresence onExitComplete={() => onExited()}>
@@ -1196,11 +1320,17 @@ export default function ChatDrawer({
             role="dialog"
             aria-modal="true"
             aria-label={
-              demo ? content.askAi.demo.setup.title : content.askAi.title
+              mode === "store-demo"
+                ? content.askAi.storeDemo.title
+                : demo
+                  ? content.askAi.demo.setup.title
+                  : content.askAi.title
             }
             tabIndex={-1}
             data-chat-theme={theme}
-            className={`absolute inset-y-0 right-0 flex h-viewport-sm flex-col overflow-hidden rounded-l-[18px] bg-chat-surface text-chat-text outline-none ${PANEL_WIDTH}`}
+            className={`absolute inset-y-0 right-0 flex h-viewport-sm flex-col overflow-hidden rounded-l-[18px] text-chat-text outline-none ${PANEL_WIDTH} ${
+              waView ? "bg-wa-bg" : "bg-chat-surface"
+            }`}
             initial={reduce ? { opacity: 0 } : { x: "100%" }}
             animate={reduce ? { opacity: 1 } : { x: 0 }}
             exit={
@@ -1225,8 +1355,17 @@ export default function ChatDrawer({
                     : undefined
                 }
                 badge={demo ? content.askAi.demo.badge : undefined}
-                onBack={mode === "demo-chat" ? handleDemoBack : undefined}
+                onBack={
+                  mode === "demo-chat"
+                    ? handleDemoBack
+                    : mode === "store-demo"
+                      ? handleStoreBack
+                      : undefined
+                }
                 onDemo={mode === "daniyal" ? handleOpenDemoSetup : undefined}
+                onStoreDemo={
+                  mode === "daniyal" ? handleOpenStoreDemo : undefined
+                }
                 theme={theme}
                 onThemeChange={setTheme}
                 voiceReplies={voiceReplies}
@@ -1235,6 +1374,12 @@ export default function ChatDrawer({
                 pending={pending}
                 onNewChat={handleNewChat}
                 onClose={handleClose}
+                waAvailable={waEnabled}
+                waActive={waView}
+                onToggleWhatsApp={toggleWhatsAppView}
+                waName={waName}
+                waInitials={waInitials}
+                waTyping={pending}
               />
 
               <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1281,9 +1426,12 @@ export default function ChatDrawer({
                       <ChatOpening
                         onPick={handlePick}
                         onDemo={handleOpenDemoSetup}
+                        onStoreDemo={handleOpenStoreDemo}
                       />
                     ) : showDemoIntro ? (
                       <DemoIntro />
+                    ) : showStoreIntro ? (
+                      <DemoIntro line={content.askAi.storeDemo.chatIntro} />
                     ) : (
                       <ChatConversation
                         messages={messages}
@@ -1294,6 +1442,22 @@ export default function ChatDrawer({
                         onStopSpeaking={handleStopSpeaking}
                         stream={stream}
                         settledId={settledId}
+                        skin={waView}
+                        starter={
+                          mode === "store-demo" && messages.length <= 1
+                            ? {
+                                title: content.askAi.storeDemo.starterTitle,
+                                ordersLabel:
+                                  content.askAi.storeDemo.starterOrdersLabel,
+                                orders: STORE_DEMO_SAMPLE_ORDER_NUMBERS,
+                                productsLabel:
+                                  content.askAi.storeDemo.starterProductsLabel,
+                                products: STORE_DEMO_SAMPLE_PRODUCT_NAMES,
+                                chips: content.askAi.storeDemo.starterChips,
+                              }
+                            : null
+                        }
+                        onStarterPick={handlePick}
                       />
                     )}
                   </motion.div>
@@ -1327,7 +1491,7 @@ export default function ChatDrawer({
                   onSend={handleSend}
                   busy={pending}
                   sendLocked={
-                    mode === "demo-chat" && demoLimitSeconds !== null
+                    isDemoLikeMode(mode) && demoLimitSeconds !== null
                   }
                   canMic={canRecognize}
                   micActive={listening}
@@ -1339,6 +1503,14 @@ export default function ChatDrawer({
                   onWave={handleOpenVoice}
                   error={errorMessage}
                   note={demo ? content.askAi.demo.note : undefined}
+                  // The Store demo's own placeholder in the normal view only
+                  // (docs/fix.txt); the WhatsApp skin keeps its own line.
+                  placeholder={
+                    mode === "store-demo" && !waView
+                      ? content.askAi.storeDemo.inputPlaceholder
+                      : undefined
+                  }
+                  skin={waView}
                 />
               )}
             </div>

@@ -52,6 +52,41 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* WhatsApp demo skin — palette A as the root fallback                 */
+/*                                                                      */
+/* The palette normally lives on the drawer's `[data-chat-theme]`      */
+/* panel (light + gray = palette A below, dark = palette C in its      */
+/* block). These root definitions make the default Light case resolve  */
+/* the same palette even if the attribute is momentarily absent, so no  */
+/* skin surface (panel, header, canvas, bar) can ever be transparent.   */
+/* Dark overrides everything below. The hex values live only here.     */
+/* ------------------------------------------------------------------ */
+:root {
+  --wa-bg: #ECE5DD;
+  --wa-header: #1F6F5C;
+  --wa-header-text: #FFFFFF;
+  --wa-avatar: #CDEBDD;
+  --wa-avatar-text: #0F4C3E;
+  --wa-note-bg: #FFF3C4;
+  --wa-note-text: #5C4A0A;
+  --wa-in: #FFFFFF;
+  --wa-in-text: #222222;
+  --wa-out: #D9F2D0;
+  --wa-out-text: #1B2A1B;
+  --wa-meta: #7A7A7A;
+  --wa-out-meta: #5E7A5E;
+  --wa-tick: #3A9BDC;
+  --wa-bar: #F4F1EC;
+  --wa-input: #FFFFFF;
+  --wa-input-text: #8A8A8A;
+  --wa-send: #1F6F5C;
+  --wa-send-text: #FFFFFF;
+  --wa-chip-border: #9FCFA9;
+  --wa-chip-text: #2B5A3A;
+  --wa-chip-bg: #FFFFFF;
+}
+
+/* ------------------------------------------------------------------ */
 /* Ask AI chat — theme tokens                                          */
 /*                                                                      */
 /* The chat drawer carries `data-chat-theme` on its own root, so these  */
@@ -76,6 +111,32 @@
   --chat-primary-bg: #333333;
   --chat-primary-fg: #e8e8e8;
 
+  /* WhatsApp demo skin (docs/fix.txt) — palette A (light). The hex values
+     live ONLY here; the skin is a visual toggle inside the demo chats and
+     never touches the site palette. */
+  --wa-bg: #ECE5DD;
+  --wa-header: #1F6F5C;
+  --wa-header-text: #FFFFFF;
+  --wa-avatar: #CDEBDD;
+  --wa-avatar-text: #0F4C3E;
+  --wa-note-bg: #FFF3C4;
+  --wa-note-text: #5C4A0A;
+  --wa-in: #FFFFFF;
+  --wa-in-text: #222222;
+  --wa-out: #D9F2D0;
+  --wa-out-text: #1B2A1B;
+  --wa-meta: #7A7A7A;
+  --wa-out-meta: #5E7A5E;
+  --wa-tick: #3A9BDC;
+  --wa-bar: #F4F1EC;
+  --wa-input: #FFFFFF;
+  --wa-input-text: #8A8A8A;
+  --wa-send: #1F6F5C;
+  --wa-send-text: #FFFFFF;
+  --wa-chip-border: #9FCFA9;
+  --wa-chip-text: #2B5A3A;
+  --wa-chip-bg: #FFFFFF;
+
   --scrollbar-thumb: var(--accent);
   --scrollbar-thumb-hover: var(--foreground);
 }
@@ -93,6 +154,30 @@
   --chat-user-bubble-fg: #333333;
   --chat-primary-bg: #e8e8e8;
   --chat-primary-fg: #333333;
+
+  /* WhatsApp demo skin — palette C (dark). */
+  --wa-bg: #0F1A1C;
+  --wa-header: #16272A;
+  --wa-header-text: #E6EEEE;
+  --wa-avatar: #2E7D66;
+  --wa-avatar-text: #FFFFFF;
+  --wa-note-bg: #24363A;
+  --wa-note-text: #C9D6D6;
+  --wa-in: #1F3034;
+  --wa-in-text: #E6EEEE;
+  --wa-out: #1E5E4B;
+  --wa-out-text: #F0F7F5;
+  --wa-meta: #8FA3A3;
+  --wa-out-meta: #A9D6C6;
+  --wa-tick: #6CC0F0;
+  --wa-bar: #16272A;
+  --wa-input: #24363A;
+  --wa-input-text: #8FA3A3;
+  --wa-send: #2E7D66;
+  --wa-send-text: #FFFFFF;
+  --wa-chip-border: #2E7D66;
+  --wa-chip-text: #C9E8DC;
+  --wa-chip-bg: #1F3034;
 
   /* Scrollbar: light thumb on the dark surface, darkening to the soft-gray
      accent on hover (a near-black thumb would disappear on #333333). */
@@ -113,6 +198,30 @@
   --chat-user-bubble-fg: #e8e8e8;
   --chat-primary-bg: #333333;
   --chat-primary-fg: #e8e8e8;
+
+  /* WhatsApp demo skin — palette A (light). */
+  --wa-bg: #ECE5DD;
+  --wa-header: #1F6F5C;
+  --wa-header-text: #FFFFFF;
+  --wa-avatar: #CDEBDD;
+  --wa-avatar-text: #0F4C3E;
+  --wa-note-bg: #FFF3C4;
+  --wa-note-text: #5C4A0A;
+  --wa-in: #FFFFFF;
+  --wa-in-text: #222222;
+  --wa-out: #D9F2D0;
+  --wa-out-text: #1B2A1B;
+  --wa-meta: #7A7A7A;
+  --wa-out-meta: #5E7A5E;
+  --wa-tick: #3A9BDC;
+  --wa-bar: #F4F1EC;
+  --wa-input: #FFFFFF;
+  --wa-input-text: #8A8A8A;
+  --wa-send: #1F6F5C;
+  --wa-send-text: #FFFFFF;
+  --wa-chip-border: #9FCFA9;
+  --wa-chip-text: #2B5A3A;
+  --wa-chip-bg: #FFFFFF;
 
   --scrollbar-thumb: var(--accent);
   --scrollbar-thumb-hover: var(--foreground);
@@ -276,6 +385,31 @@
   --color-chat-user-bubble-fg: var(--chat-user-bubble-fg);
   --color-chat-primary: var(--chat-primary-bg);
   --color-chat-primary-fg: var(--chat-primary-fg);
+
+  /* WhatsApp demo skin (docs/fix.txt) — resolved at runtime from the
+     drawer's data-chat-theme, exactly like the chat tokens above. */
+  --color-wa-bg: var(--wa-bg);
+  --color-wa-header: var(--wa-header);
+  --color-wa-header-text: var(--wa-header-text);
+  --color-wa-avatar: var(--wa-avatar);
+  --color-wa-avatar-text: var(--wa-avatar-text);
+  --color-wa-note: var(--wa-note-bg);
+  --color-wa-note-text: var(--wa-note-text);
+  --color-wa-in: var(--wa-in);
+  --color-wa-in-text: var(--wa-in-text);
+  --color-wa-out: var(--wa-out);
+  --color-wa-out-text: var(--wa-out-text);
+  --color-wa-meta: var(--wa-meta);
+  --color-wa-out-meta: var(--wa-out-meta);
+  --color-wa-tick: var(--wa-tick);
+  --color-wa-bar: var(--wa-bar);
+  --color-wa-input: var(--wa-input);
+  --color-wa-input-text: var(--wa-input-text);
+  --color-wa-send: var(--wa-send);
+  --color-wa-send-text: var(--wa-send-text);
+  --color-wa-chip-border: var(--wa-chip-border);
+  --color-wa-chip-text: var(--wa-chip-text);
+  --color-wa-chip-bg: var(--wa-chip-bg);
 
   --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

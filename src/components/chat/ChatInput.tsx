@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
-import { ArrowUpIcon, MicrophoneIcon, WaveIcon } from "@/components/icons";
+import {
+  ArrowUpIcon,
+  MicrophoneIcon,
+  SendPlaneIcon,
+  WaveIcon,
+} from "@/components/icons";
 
 /** The textarea grows from one line up to four. */
 const MAX_INPUT_HEIGHT = 104;
@@ -14,6 +19,9 @@ const MAX_INPUT_LENGTH = 500;
 
 const ICON_BUTTON_CLASS =
   "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-chat-control text-chat-control-fg transition-colors hover:text-chat-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-40";
+
+const WA_ICON_BUTTON_CLASS =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-wa-input-text transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wa-input-text disabled:pointer-events-none disabled:opacity-40";
 
 type ChatInputProps = {
   value: string;
@@ -40,6 +48,18 @@ type ChatInputProps = {
   error?: string | null;
   /** The quiet line under the input (defaults to the saved-chats note). */
   note?: string;
+  /**
+   * Overrides the default placeholder (e.g. the Store demo's own line).
+   * Unset keeps the current behaviour: WhatsApp skin placeholder when the
+   * skin is on, otherwise the main chat placeholder.
+   */
+  placeholder?: string;
+  /**
+   * The WhatsApp skin (docs/fix.txt): the bar, the input pill, the icons and
+   * the send button are recolored with the --wa-* tokens and the placeholder
+   * changes. Every behaviour (auto-grow, 500 chars, Enter, mic) is untouched.
+   */
+  skin?: boolean;
 };
 
 /**
@@ -48,6 +68,10 @@ type ChatInputProps = {
  * A rounded, muted container with an auto-growing textarea and three round
  * buttons: the microphone (dictation fills the textarea, it never sends on
  * its own), the wave (voice mode) and the send arrow.
+ *
+ * In the WhatsApp skin the same component switches to the skin palette: a
+ * full-width --wa-bar strip, a --wa-input pill with the skin placeholder and
+ * a round --wa-send paper-plane button.
  */
 export default function ChatInput({
   value,
@@ -62,9 +86,17 @@ export default function ChatInput({
   onWave,
   error,
   note = content.askAi.savedNote,
+  placeholder: placeholderOverride,
+  skin = false,
 }: ChatInputProps) {
   const reduce = useReducedMotion() ?? false;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const placeholder =
+    placeholderOverride ??
+    (skin
+      ? content.askAi.whatsapp.inputPlaceholder
+      : content.askAi.placeholder);
+  const buttonClass = skin ? WA_ICON_BUTTON_CLASS : ICON_BUTTON_CLASS;
 
   // Grow with the content, up to four lines.
   useEffect(() => {
@@ -77,7 +109,11 @@ export default function ChatInput({
   const canSend = value.trim().length > 0 && !busy && !sendLocked;
 
   return (
-    <div className="px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:px-5 sm:pb-[calc(env(safe-area-inset-bottom)+16px)]">
+    <div
+      className={`${
+        skin ? "bg-wa-bar" : ""
+      } px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:px-5 sm:pb-[calc(env(safe-area-inset-bottom)+16px)]`}
+    >
       <motion.div
         initial={{ opacity: 0, y: reduce ? 0 : 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -86,7 +122,11 @@ export default function ChatInput({
           ease: askAiMotion.easeOut,
           delay: reduce ? 0 : askAiMotion.entry.input.delay,
         }}
-        className="flex items-end gap-1.5 rounded-[18px] bg-chat-input p-1.5 ring-1 ring-chat-border"
+        className={`flex items-end gap-1.5 rounded-[18px] p-1.5 ${
+          skin
+            ? "bg-wa-input"
+            : "bg-chat-input ring-1 ring-chat-border"
+        }`}
       >
         <textarea
           ref={textareaRef}
@@ -99,9 +139,13 @@ export default function ChatInput({
             event.preventDefault();
             if (canSend) onSend();
           }}
-          placeholder={content.askAi.placeholder}
-          aria-label={content.askAi.placeholder}
-          className="max-h-[104px] min-h-[28px] flex-1 resize-none bg-transparent px-2.5 py-1.5 text-[16px] leading-[1.4] text-chat-text outline-none placeholder:text-chat-muted focus-visible:outline-none sm:text-[15px]"
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className={`max-h-[104px] min-h-[28px] flex-1 resize-none bg-transparent px-2.5 py-1.5 text-[16px] leading-[1.4] outline-none focus-visible:outline-none sm:text-[15px] ${
+            skin
+              ? "text-wa-input-text placeholder:text-wa-input-text"
+              : "text-chat-text placeholder:text-chat-muted"
+          }`}
         />
 
         <div className="flex shrink-0 items-center gap-0.5 pb-0.5">
@@ -112,8 +156,8 @@ export default function ChatInput({
               aria-label={content.askAi.micLabel}
               title={content.askAi.micLabel}
               aria-pressed={micActive}
-              className={`${ICON_BUTTON_CLASS} ${
-                micActive ? "text-chat-accent" : ""
+              className={`${buttonClass} ${
+                micActive ? (skin ? "text-wa-header" : "text-chat-accent") : ""
               }`}
             >
               <span className="relative flex items-center justify-center">
@@ -121,7 +165,9 @@ export default function ChatInput({
                 {micActive ? (
                   <motion.span
                     aria-hidden="true"
-                    className="absolute inset-0 rounded-full border border-chat-accent"
+                    className={`absolute inset-0 rounded-full border ${
+                      skin ? "border-wa-header" : "border-chat-accent"
+                    }`}
                     animate={{ opacity: [0.9, 0.15, 0.9], scale: [1, 1.25, 1] }}
                     transition={{
                       duration: askAiMotion.pulse.duration,
@@ -140,7 +186,7 @@ export default function ChatInput({
               onClick={onWave}
               aria-label={content.askAi.waveLabel}
               title={content.askAi.waveLabel}
-              className={ICON_BUTTON_CLASS}
+              className={buttonClass}
             >
               <WaveIcon className="h-4 w-4" />
             </button>
@@ -152,21 +198,35 @@ export default function ChatInput({
             disabled={!canSend}
             aria-label={content.askAi.sendLabel}
             title={content.askAi.sendLabel}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-chat-primary text-chat-primary-fg transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-30"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent disabled:pointer-events-none disabled:opacity-30 ${
+              skin
+                ? "bg-wa-send text-wa-send-text"
+                : "bg-chat-primary text-chat-primary-fg"
+            }`}
           >
-            <ArrowUpIcon className="h-4 w-4" />
+            {skin ? (
+              <SendPlaneIcon className="h-4 w-4" />
+            ) : (
+              <ArrowUpIcon className="h-4 w-4" />
+            )}
           </button>
         </div>
       </motion.div>
 
-      <p className="mt-2 px-1 text-center text-[10px] text-chat-muted">
+      <p
+        className={`mt-2 px-1 text-center text-[10px] ${
+          skin ? "text-wa-input-text" : "text-chat-muted"
+        }`}
+      >
         {note}
       </p>
 
       {error ? (
         <p
           role="status"
-          className="mt-2 px-1 text-[11px] text-chat-muted [overflow-wrap:anywhere]"
+          className={`mt-2 px-1 text-[11px] [overflow-wrap:anywhere] ${
+            skin ? "text-wa-input-text" : "text-chat-muted"
+          }`}
         >
           {error}
         </p>
