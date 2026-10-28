@@ -5,7 +5,10 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowDown } from "@/components/icons";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
-import type { ChatStatus } from "@/lib/chat/status-events";
+import {
+  STORE_AGENT_NAME,
+  type ChatStatus,
+} from "@/lib/chat/status-events";
 
 type ThinkingStepsProps = {
   /** Every status received for this answer, in order. */
@@ -20,14 +23,17 @@ type ThinkingStepsProps = {
   className?: string;
 };
 
-type SpecialistAgent = "Work" | "Profile" | "Contact";
 type StepMeta = {
   chip?: string;
   text: string;
   arrow?: boolean;
 };
 
-function agentChip(agent: SpecialistAgent): string {
+function agentChip(agent: string): string {
+  // The store demo has a single agent with its own short chip label.
+  if (agent === STORE_AGENT_NAME) {
+    return content.askAi.storeDemo.steps.chip;
+  }
   return content.askAi.steps.agentChip.replace("{agent}", agent);
 }
 
@@ -38,6 +44,8 @@ function stepMeta(status: ChatStatus): StepMeta {
         chip: content.askAi.steps.routingChip,
         text: content.askAi.steps.routing,
       };
+    case "agent":
+      return { text: status.name };
     case "handoff":
       return {
         text: content.askAi.steps.handoff.replace("{agent}", status.to),
@@ -51,7 +59,10 @@ function stepMeta(status: ChatStatus): StepMeta {
     case "writing":
       return {
         chip: agentChip(status.agent),
-        text: content.askAi.steps.writing,
+        text:
+          status.agent === STORE_AGENT_NAME
+            ? content.askAi.storeDemo.steps.writing
+            : content.askAi.steps.writing,
       };
   }
 }
@@ -77,6 +88,26 @@ function buildSummary(statuses: ChatStatus[]): string {
   return template
     .replace("{chain}", chain.join(" → "))
     .replace("{count}", String(handoffs));
+}
+
+/**
+ * The store demo's summary: "Store agent · N tool(s)" counting the tool
+ * lookups, or "· answered directly" when no tool ran. No handoffs exist in
+ * this mode, so the main chain summary never applies.
+ */
+function buildStoreSummary(statuses: ChatStatus[]): string {
+  const tools = statuses.filter((status) => status.phase === "lookup").length;
+
+  if (tools === 0) return content.askAi.storeDemo.steps.summaryDirect;
+
+  const template =
+    tools === 1
+      ? content.askAi.storeDemo.steps.summaryTool
+      : content.askAi.storeDemo.steps.summaryTools;
+
+  return template
+    .replace("{agent}", STORE_AGENT_NAME)
+    .replace("{count}", String(tools));
 }
 
 function Dot({ active }: { active: boolean }) {
@@ -210,7 +241,10 @@ export default function ThinkingSteps({
   if (statuses.length === 0) return null;
 
   if (started) {
-    const summary = buildSummary(statuses);
+    // The store demo has its own quiet summary (tools, not handoffs); the
+    // `agent` phase exists only in that mode.
+    const isStore = statuses.some((status) => status.phase === "agent");
+    const summary = isStore ? buildStoreSummary(statuses) : buildSummary(statuses);
 
     return (
       <div className={className}>

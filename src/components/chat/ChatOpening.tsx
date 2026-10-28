@@ -10,6 +10,8 @@ type ChatOpeningProps = {
   onPick: (question: string) => void;
   /** Called when the user taps the "Try a demo project" row. */
   onDemo: () => void;
+  /** Called when the user taps the "Try the store demo" row. */
+  onStoreDemo: () => void;
 };
 
 /**
@@ -21,7 +23,7 @@ type ChatOpeningProps = {
  * stagger in one by one and the input bar follows (its delay lives in the
  * motion tokens).
  */
-export default function ChatOpening({ onPick, onDemo }: ChatOpeningProps) {
+export default function ChatOpening({ onPick, onDemo, onStoreDemo }: ChatOpeningProps) {
   const reduce = useReducedMotion() ?? false;
   const distance = reduce ? 0 : 14;
 
@@ -108,6 +110,39 @@ export default function ChatOpening({ onPick, onDemo }: ChatOpeningProps) {
                 </span>
                 <span className="min-w-0 text-[14px] text-chat-text">
                   {content.askAi.demo.openingRow}
+                </span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-chat-accent transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </button>
+          </motion.li>
+
+          {/* The store demo row — the same line style, tagged "Demo" too,
+              placed directly under the paste/PDF demo row. */}
+          <motion.li
+            initial={{ opacity: 0, y: distance }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: askAiMotion.item,
+              ease: askAiMotion.easeOut,
+              delay: reduce
+                ? 0
+                : askAiMotion.entry.row.delay +
+                  (content.askAi.suggestions.length + 1) *
+                    askAiMotion.entry.row.stagger,
+            }}
+            className="border-t border-chat-border last:border-b"
+          >
+            <button
+              type="button"
+              onClick={onStoreDemo}
+              className="group flex w-full items-center justify-between gap-3 py-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
+            >
+              <span className="flex min-w-0 items-baseline gap-3">
+                <span className="shrink-0 rounded-full bg-chat-control px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-chat-muted">
+                  {content.askAi.demo.badge}
+                </span>
+                <span className="min-w-0 text-[14px] text-chat-text">
+                  {content.askAi.storeDemo.openingRow}
                 </span>
               </span>
               <ArrowUpRight className="h-4 w-4 shrink-0 text-chat-accent transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

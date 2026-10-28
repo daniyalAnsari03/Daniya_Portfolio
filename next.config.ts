@@ -39,6 +39,7 @@ const nextConfig: NextConfig = {
     // both chat routes carry them into the serverless output.
     "/api/chat": ["./src/lib/chat/skills/**/*"],
     "/api/chat/demo": ["./src/lib/chat/skills/**/*"],
+    "/api/chat/demo-store": ["./src/lib/chat/skills/**/*"],
   },
   images: {
     // Only applies to the local static assets in /public (the hero photo and

@@ -19,6 +19,14 @@ export const TOOL_GET_CHATBOT_KNOWLEDGE = "get_chatbot_knowledge";
  */
 export const TOOL_SHOW_CONTACT_FORM = "show_contact_form";
 
+/**
+ * The two LOCAL read-only tools of the "Store demo" mode (docs/fix.txt).
+ * They are not MCP tools and read only the hardcoded fake store data —
+ * no database, no env, no portfolio knowledge.
+ */
+export const TOOL_LOOKUP_ORDER = "lookup_order";
+export const TOOL_CHECK_STOCK = "check_stock";
+
 export const WORK_TOOLS = [
   TOOL_GET_PROJECTS,
   TOOL_GET_PROJECT_DETAIL,

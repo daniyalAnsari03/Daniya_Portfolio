@@ -4,10 +4,18 @@ import { motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
 
+type DemoIntroProps = {
+  /**
+   * The helper line to show. Defaults to the paste/PDF demo's intro; the
+   * store demo passes its own line and renders the same component.
+   */
+  line?: string;
+};
+
 /**
- * The demo chat's own opening screen: one short helper line, no starter rows.
+ * The demo chat's opening screen: one short helper line, no starter rows.
  */
-export default function DemoIntro() {
+export default function DemoIntro({ line }: DemoIntroProps) {
   const reduce = useReducedMotion() ?? false;
 
   return (
@@ -22,7 +30,7 @@ export default function DemoIntro() {
         }}
         className="max-w-[32ch] text-center text-[14px] leading-relaxed text-chat-muted"
       >
-        {content.askAi.demo.chatIntro}
+        {line ?? content.askAi.demo.chatIntro}
       </motion.p>
     </div>
   );
