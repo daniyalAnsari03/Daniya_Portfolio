@@ -3,6 +3,7 @@ import { Inter_Tight } from "next/font/google";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import { getPublicSettings } from "@/lib/settings";
+import { normalizeSocialUrl } from "@/lib/social-url";
 import {
   SITE_DESCRIPTION,
   SITE_JOB_TITLE,
@@ -61,12 +62,11 @@ async function PersonJsonLd() {
   const settings = await getPublicSettings();
 
   const sameAs = settings.socials
-    // GitHub / LinkedIn only; skip empty or invalid links entirely.
-    .filter(
-      (social) =>
-        /^(github|linkedin)$/i.test(social.name) && /^https?:\/\//i.test(social.url),
-    )
-    .map((social) => social.url)
+    // GitHub / LinkedIn only, normalized through the shared helper, so a
+    // bare domain is still repaired before the profile-path check.
+    .filter((social) => /^(github|linkedin)$/i.test(social.name))
+    .map((social) => normalizeSocialUrl(social.url))
+    .filter((url): url is string => url !== null)
     // A bare domain with no profile path is not a useful sameAs value.
     .filter(hasProfilePath);
 

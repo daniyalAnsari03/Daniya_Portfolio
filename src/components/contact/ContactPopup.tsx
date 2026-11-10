@@ -9,6 +9,7 @@ import {
 } from "framer-motion";
 import { content } from "@/lib/content";
 import { EASE, duration, pageMotion } from "@/lib/motion";
+import { normalizeSocialUrl } from "@/lib/social-url";
 import type { PublicSettings, SocialSetting } from "@/lib/settings";
 import { lockScroll, unlockScroll } from "@/components/SmoothScroll";
 import {
@@ -44,6 +45,28 @@ function socialIcon(social: SocialSetting) {
   if (name.includes("github")) return <GitHubIcon className="h-5 w-5" />;
   if (name.includes("linked")) return <LinkedInIcon className="h-5 w-5" />;
   return <LinkIcon className="h-5 w-5" />;
+}
+
+type PopupSocialLink = {
+  name: string;
+  url: string;
+  /** Absolute http(s) URL, guaranteed non-null by `popupSocialLinks`. */
+  href: string;
+};
+
+/** Same shared normalizer as the hero / footer icons. */
+function popupSocialLinks(socials: SocialSetting[]): PopupSocialLink[] {
+  return socials
+    .map((social) => ({ ...social, href: normalizeSocialUrl(social.url) }))
+    .filter((social): social is PopupSocialLink => social.href !== null);
+}
+
+/** Accessible labels must be canonical: "GitHub" / "LinkedIn". */
+function socialLabel(social: PopupSocialLink) {
+  const lowered = social.name.trim().toLowerCase();
+  if (lowered.includes("github")) return "GitHub";
+  if (lowered.includes("linked")) return "LinkedIn";
+  return social.name.trim();
 }
 
 export default function ContactPopup({
@@ -222,19 +245,19 @@ export default function ContactPopup({
                     </div>
                   </div>
 
-                  {settings.socials.length > 0 && (
+                  {popupSocialLinks(settings.socials).length > 0 && (
                     <div>
                       <h3 className="text-[12px] font-normal text-white/50 uppercase tracking-normal sm:text-[13px] md:text-[14px] lg:text-[13px]">
                         {copy.socialsTitle}
                       </h3>
                       <div className="mt-[10px] flex items-center gap-[12px] sm:mt-[12px] sm:gap-[14px] md:mt-[14px] md:gap-[16px] lg:mt-[12px] lg:gap-[12px]">
-                        {settings.socials.map((social) => (
+                        {popupSocialLinks(settings.socials).map((social) => (
                           <a
-                            key={`${social.name}-${social.url}`}
-                            href={social.url}
+                            key={`${social.name}-${social.href}`}
+                            href={social.href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label={social.name}
+                            aria-label={socialLabel(social)}
                             className="flex h-[18px] w-[18px] items-center justify-center text-white/70 transition-colors hover:text-accent-on-dark sm:h-[20px] sm:w-[20px] lg:h-[18px] lg:w-[18px]"
                           >
                             {socialIcon(social)}

@@ -3,6 +3,7 @@ import Cover from "@/components/Cover";
 import Hero from "@/components/Hero";
 import Works from "@/components/Works";
 import { getHomepageCards, getHomepageContent } from "@/lib/homepage";
+import { getPublicSettings } from "@/lib/settings";
 
 /**
  * The homepage. Everything it shows comes from the database (the admin
@@ -10,9 +11,10 @@ import { getHomepageCards, getHomepageContent } from "@/lib/homepage";
  * database is empty — so the page looks exactly the same as before.
  */
 export default async function Home() {
-  const [content, cards] = await Promise.all([
+  const [content, cards, settings] = await Promise.all([
     getHomepageContent(),
     getHomepageCards(),
+    getPublicSettings(),
   ]);
 
   return (
@@ -25,6 +27,7 @@ export default async function Home() {
             line1={content.hero.line1}
             line2={content.hero.line2}
             subtitle={content.hero.subtitle}
+            socials={settings.socials}
           />
           <Cover
             label={content.cover.label}

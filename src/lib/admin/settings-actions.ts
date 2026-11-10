@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SETTINGS_TAG, type SocialSetting } from "@/lib/settings";
+import { normalizeSocialUrl } from "@/lib/social-url";
 import { CHAT_KNOWLEDGE_TAG } from "@/lib/chat/knowledge";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -18,15 +19,6 @@ export type SettingsInput = {
 };
 
 export type SaveSettingsResult = { ok: true } | { ok: false; error: string };
-
-function isValidUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export async function saveSettings(
   input: SettingsInput,
@@ -50,26 +42,28 @@ export async function saveSettings(
     };
   }
 
-  const socials: SocialSetting[] = (Array.isArray(input?.socials)
-    ? input.socials
-    : []
-  )
+  const rawSocials = (Array.isArray(input?.socials) ? input.socials : [])
     .map((row) => ({
       name: String(row?.name ?? "").trim(),
       url: String(row?.url ?? "").trim(),
     }))
     .filter((row) => row.name || row.url);
 
-  for (const social of socials) {
+  // New values are stored normalized (https:// prepended on bare domains,
+  // etc.), so every future render gets an absolute link from the database.
+  const socials: SocialSetting[] = [];
+  for (const social of rawSocials) {
     if (!social.name) {
       return { ok: false, error: "Every social link needs a name." };
     }
-    if (!isValidUrl(social.url)) {
+    const url = normalizeSocialUrl(social.url);
+    if (!url) {
       return {
         ok: false,
-        error: `Enter a valid URL for "${social.name}" (starting with http:// or https://).`,
+        error: `Enter a valid URL for "${social.name}" (for example https://github.com/name).`,
       };
     }
+    socials.push({ name: social.name, url });
   }
 
   const adminEmails = (Array.isArray(input?.adminEmails)

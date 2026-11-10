@@ -82,20 +82,23 @@ export default function Nav() {
   return (
     <motion.nav
       aria-label="Section navigation"
-      className="fixed inset-x-0 bottom-[calc(var(--vh-sm)*0.08+env(safe-area-inset-bottom,0px))] z-[var(--z-chrome)] flex justify-center px-4 lg:bottom-9"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--vh-sm)*0.08+env(safe-area-inset-bottom,0px))] z-[var(--z-chrome)] flex justify-center px-4 lg:bottom-9"
       initial={{ opacity: 0, y: load.nav.from }}
-      animate={
-        hiddenByPopup
-          ? { opacity: 0, y: load.nav.from + 24, pointerEvents: "none" }
-          : { opacity: 1, y: 0, pointerEvents: "auto" }
-      }
+      animate={{
+        opacity: hiddenByPopup ? 0 : 1,
+        y: hiddenByPopup ? load.nav.from + 24 : 0,
+      }}
       transition={{
         duration: reduce ? 0.15 : 0.4,
         ease: load.ease,
       }}
-      style={{ pointerEvents: hiddenByPopup ? "none" : "auto" }}
     >
-      <div className="flex h-[52px] w-[268px] items-center gap-1 rounded-full bg-white p-1 shadow-[0_10px_30px_-10px_rgba(51,51,51,0.2)]">
+      {/* Only the pill is interactive; the full-width fixed container above
+          it must never intercept clicks (it covered the hero socials and
+          the scroll button, which sit inside its bottom band on desktop). */}
+      <div
+        className={`${hiddenByPopup ? "" : "pointer-events-auto"} flex h-[52px] w-[268px] items-center gap-1 rounded-full bg-white p-1 shadow-[0_10px_30px_-10px_rgba(51,51,51,0.2)]`}
+      >
         {content.nav.map((item) => {
           const isActive = active === item.target;
           return (

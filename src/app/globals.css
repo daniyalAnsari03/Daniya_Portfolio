@@ -33,6 +33,15 @@
      never covered by it. */
   --z-popup: 100;
 
+  /* Right-edge tab stack (Resume / Ask AI) — downward offset from the screen's
+     vertical centre. Below `lg` the stack sits 7svh lower than centre so it
+     clears the hero subtitle. On `lg+` it sits low enough that its top edge
+     stays ≥ ~24px below the bottom of the hero "Developer" line (incl. the
+     descender) on 1366×768 / 1440×900 / 1920×1080, while the bottom keeps
+     ≥ ~24px above the bottom-right socials on the same sizes. */
+  --edge-tabs-down: calc(var(--vh-sm) * 0.07);
+  --edge-tabs-down-lg: 180px;
+
   /* Viewport height scale.
      `--vh-sm` = the STABLE small viewport height (the browser toolbar is
      always accounted for, so it never changes while scrolling) and

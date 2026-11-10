@@ -9,6 +9,8 @@ import {
 } from "framer-motion";
 import { content } from "@/lib/content";
 import { load, maskReveal } from "@/lib/motion";
+import { normalizeSocialUrl } from "@/lib/social-url";
+import type { SocialSetting } from "@/lib/settings";
 import { scrollToSection } from "./SmoothScroll";
 import { useFrozenPage, useLoadGate } from "./PageTransition";
 import { ArrowDown, GitHubIcon, LinkedInIcon } from "./icons";
@@ -125,16 +127,40 @@ function cornerRise(from: number, index: number): Variants {
   };
 }
 
+/**
+ * Only the two icons the design has. A link the helper rejects (empty,
+ * `javascript:`, …) is never rendered at all — no dead link, no `#`.
+ */
+function heroSocialLinks(socials: SocialSetting[] | undefined) {
+  return (socials ?? [])
+    .map((social) => {
+      const name = social.name.trim();
+      const lower = name.toLowerCase();
+      const icon = lower.includes("github")
+        ? ("github" as const)
+        : lower.includes("linked")
+          ? ("linkedin" as const)
+          : null;
+      const href = normalizeSocialUrl(social.url);
+      if (!icon || !href) return null;
+      return { name, icon, href };
+    })
+    .filter((link) => link !== null);
+}
+
 export default function Hero({
   line1 = content.headline.line1,
   line2 = content.headline.line2,
   subtitle = content.subtitle,
+  socials,
 }: {
   /** Headline line 1 — sits behind the photo. */
   line1?: string;
   /** Headline line 2 — sits in front of the photo. */
   line2?: string;
   subtitle?: string;
+  /** Social links from admin Settings (GitHub / LinkedIn). */
+  socials?: SocialSetting[];
 }) {
   const reduce = useReducedMotion();
   // The load sequence waits for the page to be ready and never replays in
@@ -179,22 +205,31 @@ export default function Hero({
 
           {/* Line 2 — right-aligned below line 1 (in front of the photo) */}
           <div className="relative z-30 pr-[4vw] text-right lg:pr-0 lg:pl-[60vw] lg:text-left">
-            <RevealLine delay={load.line2.delay} duration={load.line2.duration}>
-              {line2}
-            </RevealLine>
+            {/* The text anchor. On <lg it is inline-block so it hugs the
+                headline text: its left edge IS the left edge of the "D" and
+                its right edge stays flush with the page's right padding.
+                The subtitle below is absolutely positioned over this exact
+                span (top-full, inset-x-0), so its left edge is always locked
+                to the D at every mobile/tablet width — no hard-coded offset.
+                Desktop (lg+) restores the plain block flow. */}
+            <div className="relative inline-block lg:block">
+              <RevealLine delay={load.line2.delay} duration={load.line2.duration}>
+                {line2}
+              </RevealLine>
 
-            <motion.p
-              className="mr-[4vw] ml-auto mt-[calc(var(--vh-sm)*0.015)] w-[38vw] text-left text-[15px] leading-[1.25] tracking-tight text-foreground/55 lg:mr-0 lg:ml-0 lg:mt-[calc(var(--vh-sm)*0.02)] lg:w-auto lg:text-[clamp(15px,1.2vw,22px)] lg:leading-normal"
-              initial={reduce || frozen ? false : { opacity: 0 }}
-              animate={frozen || play ? { opacity: 1 } : undefined}
-              transition={{
-                duration: load.subtitle.duration,
-                ease: load.ease,
-                delay: load.subtitle.delay,
-              }}
-            >
-              {subtitle}
-            </motion.p>
+              <motion.p
+                className="absolute inset-x-0 top-full mt-[calc(var(--vh-sm)*0.015)] text-left text-[clamp(11px,4.6vw,15px)] leading-[1.25] tracking-tight text-foreground/55 lg:static lg:mt-[calc(var(--vh-sm)*0.02)] lg:w-auto lg:text-[clamp(15px,1.2vw,22px)] lg:leading-normal"
+                initial={reduce || frozen ? false : { opacity: 0 }}
+                animate={frozen || play ? { opacity: 1 } : undefined}
+                transition={{
+                  duration: load.subtitle.duration,
+                  ease: load.ease,
+                  delay: load.subtitle.delay,
+                }}
+              >
+                {subtitle}
+              </motion.p>
+            </div>
           </div>
         </div>
 
@@ -248,14 +283,14 @@ export default function Hero({
           className="absolute bottom-[calc(var(--vh-sm)*0.03+env(safe-area-inset-bottom,0px))] right-6 z-40 flex items-center gap-3 text-charcoal lg:bottom-8 lg:right-7 lg:gap-4"
           {...corner(d, 3)}
         >
-          {content.social.map((link) => (
+          {heroSocialLinks(socials).map((link) => (
             <a
-              key={link.label}
+              key={link.icon}
               href={link.href}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={link.label}
-              className="transition-opacity duration-300 hover:opacity-60"
+              aria-label={link.icon === "github" ? "GitHub" : "LinkedIn"}
+              className="pointer-events-auto -m-[10px] p-[10px] transition-opacity duration-300 hover:opacity-60"
             >
               {link.icon === "github" ? (
                 <GitHubIcon className="h-5 w-5" />

@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { PublicSettings } from "@/lib/settings";
+import type { PublicSettings, SocialSetting } from "@/lib/settings";
 
 /** The modal is only needed once the user opens it, so it is loaded lazily. */
 const ContactPopup = dynamic(() => import("./ContactPopup"), { ssr: false });
@@ -18,6 +18,8 @@ type ContactPopupContextValue = {
   openContact: () => void;
   /** `true` while the contact sheet is open (the Resume tab hides then). */
   isOpen: boolean;
+  /** Social links from admin Settings, for the footer reveal's socials. */
+  socials: SocialSetting[];
 };
 
 const ContactPopupContext = createContext<ContactPopupContextValue | null>(null);
@@ -40,7 +42,10 @@ export default function ContactPopupProvider({
   const [open, setOpen] = useState(false);
   const openContact = useCallback(() => setOpen(true), []);
   const closeContact = useCallback(() => setOpen(false), []);
-  const value = useMemo(() => ({ openContact, isOpen: open }), [openContact, open]);
+  const value = useMemo(
+    () => ({ openContact, isOpen: open, socials: settings.socials }),
+    [openContact, open, settings.socials],
+  );
 
   return (
     <ContactPopupContext.Provider value={value}>

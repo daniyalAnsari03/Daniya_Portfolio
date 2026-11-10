@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { content } from "@/lib/content";
+import { normalizeSocialUrl } from "@/lib/social-url";
 
 /** Cache tag shared by every settings read. Revalidate after a settings write. */
 export const SETTINGS_TAG = "settings";
@@ -32,16 +33,16 @@ const DEFAULT_SOCIALS: SocialSetting[] = [
 function parseSocials(value: unknown): SocialSetting[] {
   if (!Array.isArray(value)) return DEFAULT_SOCIALS;
 
-  const socials = value
-    .map((row) =>
-      row && typeof row === "object" ? (row as Record<string, unknown>) : null,
-    )
-    .filter((row): row is Record<string, unknown> => row !== null)
-    .map((row) => ({
-      name: String(row.name ?? "").trim(),
-      url: String(row.url ?? "").trim(),
-    }))
-    .filter((row) => row.name && row.url);
+  // Existing stored values are normalized here too, so bare domains and old
+  // malformed rows are fixed at read time (no database change needed).
+  const socials: SocialSetting[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as Record<string, unknown>;
+    const name = String(row.name ?? "").trim();
+    const url = normalizeSocialUrl(String(row.url ?? ""));
+    if (name && url) socials.push({ name, url });
+  }
 
   return socials.length > 0 ? socials : DEFAULT_SOCIALS;
 }

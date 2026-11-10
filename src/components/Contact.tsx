@@ -9,6 +9,9 @@ import {
   useTransform,
 } from "framer-motion";
 import { content } from "@/lib/content";
+import { normalizeSocialUrl } from "@/lib/social-url";
+import type { SocialSetting } from "@/lib/settings";
+import { useContactPopup } from "./contact/ContactPopupProvider";
 import { useFrozenPage } from "./PageTransition";
 import { CheckIcon, CopyIcon, GitHubIcon, LinkedInIcon } from "./icons";
 
@@ -37,10 +40,32 @@ function withAccentWord(text: string, accentWord: string, className?: string) {
   );
 }
 
+/**
+ * Only the two icons the design has. A link the helper rejects (empty,
+ * `javascript:`, …) is never rendered at all — no dead link, no `#`.
+ */
+function contactSocialLinks(socials: SocialSetting[] | undefined) {
+  return (socials ?? [])
+    .map((social) => {
+      const name = social.name.trim();
+      const lower = name.toLowerCase();
+      const icon = lower.includes("github")
+        ? ("github" as const)
+        : lower.includes("linked")
+          ? ("linkedin" as const)
+          : null;
+      const href = normalizeSocialUrl(social.url);
+      if (!icon || !href) return null;
+      return { name, icon, href };
+    })
+    .filter((link) => link !== null);
+}
+
 export default function Contact({
   line1 = content.contact.heading.line1,
   line2 = content.contact.heading.line2,
   accentWord = "together",
+  socials,
 }: {
   /** Heading line 1 — in front of the avatar's top. */
   line1?: string;
@@ -48,11 +73,17 @@ export default function Contact({
   line2?: string;
   /** The word shown in the accent colour. */
   accentWord?: string;
+  /** Social links from admin Settings (GitHub / LinkedIn). */
+  socials?: SocialSetting[];
 }) {
   const reduce = useReducedMotion();
   const spacerRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
+  // Social links come from admin Settings via the shared provider (the public
+  // layout already fetches them for the contact popup), so no page can forget
+  // to pass them. An explicit prop still wins.
+  const { socials: providerSocials } = useContactPopup();
   // The frozen copy of an outgoing page must never touch the shared
   // `data-footer` flag — the incoming page owns it.
   const frozen = useFrozenPage();
@@ -228,14 +259,14 @@ export default function Contact({
           </span>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            {content.social.map((link) => (
+            {contactSocialLinks(socials ?? providerSocials).map((link) => (
               <a
-                key={link.label}
+                key={link.icon}
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={link.label}
-                className="transition-opacity duration-300 hover:opacity-60"
+                aria-label={link.icon === "github" ? "GitHub" : "LinkedIn"}
+                className="-m-2.5 p-2.5 transition-opacity duration-300 hover:opacity-60"
               >
                 {link.icon === "github" ? (
                   <GitHubIcon className="h-5 w-5" />
