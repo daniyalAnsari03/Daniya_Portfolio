@@ -24,6 +24,12 @@ type ThemeMenuProps = {
   onClose: () => void;
   /** The theme button — a click on it must not close the menu. */
   anchorRef: RefObject<HTMLButtonElement | null>;
+  /**
+   * Extra classes for the row buttons. The mobile "More" menu passes
+   * `min-h-[40px]` for the 40px tap targets; the desktop call passes nothing,
+   * so the desktop popover is pixel-identical.
+   */
+  itemClassName?: string;
 };
 
 /**
@@ -40,6 +46,7 @@ export default function ThemeMenu({
   canSpeak,
   onClose,
   anchorRef,
+  itemClassName = "",
 }: ThemeMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -95,7 +102,7 @@ export default function ThemeMenu({
                   onClose();
                   anchorRef.current?.focus();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[13px] text-chat-text transition-colors hover:bg-chat-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent"
+                className={`flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[13px] text-chat-text transition-colors hover:bg-chat-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent ${itemClassName}`}
               >
                 <span
                   aria-hidden="true"

@@ -441,3 +441,20 @@ export function DoubleTickIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** The mobile "More" header button: three small dots, drawn in-house. */
+export function MoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </svg>
+  );
+}

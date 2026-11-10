@@ -95,6 +95,12 @@ export const content = {
     voiceTitle: "Voice",
     subtitle: "About Daniyal's work only",
     newChatLabel: "New chat",
+    // The mobile "More" popover under the three-dots header button.
+    moreMenuLabel: "More options",
+    more: {
+      soundOn: "Sound on",
+      soundOff: "Sound off",
+    },
     soundOnLabel: "Voice replies on",
     soundOffLabel: "Voice replies off",
     themeLabel: "Theme",

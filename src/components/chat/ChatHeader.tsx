@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { content } from "@/lib/content";
 import { askAiMotion } from "@/lib/motion";
@@ -9,6 +9,7 @@ import {
   ChatBubbleIcon,
   DemoIcon,
   EditIcon,
+  MoreIcon,
   PaletteIcon,
   StoreIcon,
   VolumeIcon,
@@ -60,6 +61,10 @@ const CONTROL_CLASS =
 
 const WA_CONTROL_CLASS =
   "flex h-7 w-7 shrink-0 whitespace-nowrap items-center justify-center rounded-full text-wa-header-text transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wa-header-text sm:h-8 sm:w-8";
+
+/** The rows inside the mobile "More" popover — 40px tap targets. */
+const MORE_ROW_CLASS =
+  "flex min-h-[40px] w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-[13px] text-chat-text transition-colors hover:bg-chat-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chat-accent";
 
 /**
  * The WhatsApp status line: "online" normally, "typing…" while a reply is
@@ -131,6 +136,52 @@ export default function ChatHeader({
 }: ChatHeaderProps) {
   const [themeOpen, setThemeOpen] = useState(false);
   const themeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // The mobile "More" popover (docs/fix.txt): a three-dots button replaces
+  // the sound/theme round buttons below md. Its menu holds the sound state
+  // row and, once "Theme" is picked, the existing ThemeMenu rows — the theme
+  // logic and storage stay in exactly one place.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreThemesOpen, setMoreThemesOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const closeMoreMenu = useCallback(
+    (focusBack: boolean) => {
+      setMoreOpen(false);
+      setMoreThemesOpen(false);
+      if (focusBack) moreButtonRef.current?.focus();
+    },
+    [],
+  );
+
+  // Outside tap + Escape close the rows panel. The ThemeMenu instance owns
+  // its own handlers while the theme rows are showing.
+  useEffect(() => {
+    if (!moreOpen || moreThemesOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (moreMenuRef.current?.contains(target)) return;
+      if (moreButtonRef.current?.contains(target)) return;
+      closeMoreMenu(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeMoreMenu(true);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [moreOpen, moreThemesOpen, closeMoreMenu]);
+
   const waLabel =
     content.askAi.whatsapp[
       waActive ? "toggleOff" : "toggleOn"
@@ -165,7 +216,11 @@ export default function ChatHeader({
               ? content.askAi.soundOnLabel
               : content.askAi.soundOffLabel
           }
-          className={waActive ? WA_CONTROL_CLASS : `${CONTROL_CLASS} shrink-0 whitespace-nowrap`}
+          className={
+            waActive
+              ? WA_CONTROL_CLASS
+              : `${CONTROL_CLASS} hidden md:flex shrink-0 whitespace-nowrap`
+          }
         >
           {voiceReplies ? (
             <VolumeIcon className="h-4 w-4" />
@@ -199,9 +254,31 @@ export default function ChatHeader({
         aria-label={content.askAi.themeLabel}
         aria-expanded={themeOpen}
         title={content.askAi.themeLabel}
-        className={waActive ? WA_CONTROL_CLASS : CONTROL_CLASS}
+        className={
+          waActive ? WA_CONTROL_CLASS : `${CONTROL_CLASS} hidden md:flex`
+        }
       >
         <PaletteIcon className="h-4 w-4" />
+      </button>
+
+      {/* The mobile three-dots button — the sound/theme round buttons live
+          in its popover below md. Desktop never sees it. */}
+      <button
+        ref={moreButtonRef}
+        type="button"
+        onClick={() => {
+          setMoreThemesOpen(false);
+          setMoreOpen((open) => !open);
+        }}
+        aria-label={content.askAi.moreMenuLabel}
+        aria-expanded={moreOpen}
+        aria-haspopup="menu"
+        title={content.askAi.moreMenuLabel}
+        className={`${
+          waActive ? WA_CONTROL_CLASS : CONTROL_CLASS
+        } md:hidden`}
+      >
+        <MoreIcon className="h-4 w-4" />
       </button>
 
       <button
@@ -214,6 +291,69 @@ export default function ChatHeader({
         <XIcon className="h-4 w-4" />
       </button>
     </>
+  );
+
+  /**
+   * The mobile More popover: only below md (the wrapper also carries
+   * md:hidden), anchored under the three-dots button, opaque, and kept
+   * inside the drawer by the header's own padding + max-width.
+   */
+  const moreMenu = (
+    <ThemeMenuMotion
+      open={moreOpen}
+      className="absolute top-full right-3 z-50 mt-2 w-[220px] max-w-[calc(100%-24px)] md:hidden"
+    >
+      {moreThemesOpen ? (
+        <ThemeMenu
+          theme={theme}
+          onThemeChange={onThemeChange}
+          voiceReplies={voiceReplies}
+          onVoiceRepliesChange={onVoiceRepliesChange}
+          // Pure palette picker: the sound switch already lives in the rows.
+          canSpeak={false}
+          itemClassName="min-h-[40px]"
+          onClose={() => closeMoreMenu(true)}
+          anchorRef={moreButtonRef}
+        />
+      ) : (
+        <div
+          ref={moreMenuRef}
+          role="menu"
+          aria-label={content.askAi.moreMenuLabel}
+          className="w-full rounded-[14px] bg-chat-surface p-1.5 ring-1 ring-chat-border"
+        >
+          {canSpeak ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onVoiceRepliesChange(!voiceReplies);
+                closeMoreMenu(true);
+              }}
+              className={MORE_ROW_CLASS}
+            >
+              {voiceReplies
+                ? content.askAi.more.soundOn
+                : content.askAi.more.soundOff}
+            </button>
+          ) : null}
+
+          {canSpeak ? (
+            <div aria-hidden="true" className="my-1 h-px bg-chat-border" />
+          ) : null}
+
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            onClick={() => setMoreThemesOpen(true)}
+            className={MORE_ROW_CLASS}
+          >
+            {content.askAi.themeLabel}
+          </button>
+        </div>
+      )}
+    </ThemeMenuMotion>
   );
 
   if (waActive) {
@@ -269,6 +409,8 @@ export default function ChatHeader({
             anchorRef={themeButtonRef}
           />
         </ThemeMenuMotion>
+
+        {moreMenu}
       </div>
     );
   }
@@ -306,7 +448,10 @@ export default function ChatHeader({
               ) : null}
             </div>
             {subtitle ? (
-              <p className="max-[389px]:hidden truncate text-[11px] text-chat-muted">
+              /* Below md the subtitle wraps (never truncated) and shrinks one
+                 step so the fixed 56px header row still fits two lines; from
+                 md up it is exactly the previous truncate line. */
+              <p className="text-[10px] leading-[1.3] text-chat-muted md:truncate md:text-[11px] md:leading-normal">
                 {subtitle}
               </p>
             ) : null}
@@ -332,7 +477,7 @@ export default function ChatHeader({
               onClick={onDemo}
               aria-label={content.askAi.demo.openingRow}
               title={content.askAi.demo.openingRow}
-              className={CONTROL_CLASS}
+              className={`${CONTROL_CLASS} hidden md:flex`}
             >
               <DemoIcon className="h-4 w-4" />
             </button>
@@ -344,7 +489,7 @@ export default function ChatHeader({
               onClick={onStoreDemo}
               aria-label={content.askAi.storeDemo.openingRow}
               title={content.askAi.storeDemo.openingRow}
-              className={CONTROL_CLASS}
+              className={`${CONTROL_CLASS} hidden md:flex`}
             >
               <StoreIcon className="h-4 w-4" />
             </button>
@@ -368,6 +513,8 @@ export default function ChatHeader({
           anchorRef={themeButtonRef}
         />
       </ThemeMenuMotion>
+
+      {moreMenu}
     </div>
   );
 }
