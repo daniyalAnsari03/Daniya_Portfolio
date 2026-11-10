@@ -1,27 +1,26 @@
 "use client";
 
-import {
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { about, duration } from "@/lib/motion";
+import { ABOUT_VIEWPORT } from "./Reveal";
 
 /**
  * Services-only reveal helpers. The public Services section dropped the shared
  * `Reveal` / `LineDraw` / `SectionRise` blocks because the clip-path line draw
  * and the whole-section slide were competing with every column's own scroll
- * animation at the same moment — which stutters on phones. Everything here
- * animates ONLY opacity and transform, composites on the GPU, animates each
- * column as one block and keeps will-change out entirely.
+ * animation at the same moment. Everything here animates ONLY opacity and
+ * transform, composites on the GPU, animates each column as one block and
+ * keeps will-change out entirely. The same full sequence runs on every
+ * device (see Reveal.tsx): reduced motion collapses each piece to a plain
+ * short fade — never the device itself.
  */
 
 const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
-const TOUCH_QUERY = "(hover: none)";
 
 function subscribeMedia(callback: () => void) {
-  const queries = [MD_QUERY, LG_QUERY, TOUCH_QUERY].map((query) =>
+  const queries = [MD_QUERY, LG_QUERY].map((query) =>
     window.matchMedia(query),
   );
   queries.forEach((query) => query.addEventListener("change", callback));
@@ -31,7 +30,9 @@ function subscribeMedia(callback: () => void) {
 
 /** Columns per grid row: 1 (mobile) / 2 (tablet) / 3 (desktop). Matches the
  * grid classes in `Services.tsx`. Server snapshot = desktop (hydration safe;
- * resolves right after mount, before the section is scrolled to). */
+ * resolves right after mount, before the section is scrolled to). Used ONLY
+ * for the stacked single-column trigger logic — the animation itself is the
+ * desktop sequence everywhere. */
 function getColsPerRow(): number {
   if (!window.matchMedia(MD_QUERY).matches) return 1;
   return window.matchMedia(LG_QUERY).matches ? 3 : 2;
@@ -41,22 +42,9 @@ function useColsPerRow(): number {
   return useSyncExternalStore(subscribeMedia, getColsPerRow, () => 3);
 }
 
-function useTouchDevice(): boolean {
-  return useSyncExternalStore(
-    subscribeMedia,
-    () => window.matchMedia(TOUCH_QUERY).matches,
-    () => false,
-  );
-}
-
-/** Standard viewport config: fires once, 10% inside the viewport. */
-const VIEWPORT = { once: true, margin: "-10%" } as const;
-
 /**
- * The dark Services section. Same look as before. Desktop: the whole section
- * still rises 56px the first time it enters view. On mobile (< md), on touch
- * devices and under reduced motion it only fades — the section itself never
- * transforms, so it never animates against its own columns.
+ * The dark Services section. Same look everywhere: the whole section rises
+ * 56px the first time it enters view. Reduced motion: opacity only.
  */
 export function ServicesSection({
   id,
@@ -71,20 +59,17 @@ export function ServicesSection({
   children: ReactNode;
 }) {
   const reduce = useReducedMotion() ?? false;
-  const touch = useTouchDevice();
-  const cols = useColsPerRow();
-  const simple = reduce || touch || cols === 1;
 
   return (
     <motion.section
       id={id}
       className={className}
       data-chrome-dark={dataChromeDark ? "true" : undefined}
-      initial={{ opacity: 0, y: simple ? 0 : 56 }}
+      initial={{ opacity: 0, y: reduce ? 0 : 56 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={VIEWPORT}
+      viewport={ABOUT_VIEWPORT}
       transition={{
-        duration: simple ? duration.fast : about.pageDuration,
+        duration: reduce ? duration.fast : about.pageDuration,
         ease: about.easeInOut,
       }}
     >
@@ -94,14 +79,13 @@ export function ServicesSection({
 }
 
 /**
- * One services column. Desktop: unchanged behaviour — the column fades and
+ * One services column. Same behaviour on every device — the column fades and
  * rises (48px) with the shared page duration while its thin line draws left →
- * right (scaleX with transform-origin left). Mobile / touch / reduced motion:
- * the whole column (line, title, description) is ONE block that fades in when
- * it enters the viewport; the title and description no longer queue behind
- * columns that are still off-screen (row-local stagger instead of a global
- * per-index delay; on a phone, where every column is its own row, that delay
- * is 0). Reduced motion: opacity only, the line is never drawn.
+ * right (scaleX with transform-origin left). Stacked single-column grids
+ * (cols === 1, phones) have no stagger delay, so every stacked column starts
+ * the moment it comes into view instead of queueing behind columns that are
+ * still off-screen; wider grids keep the global per-index stagger. Reduced
+ * motion: opacity only, the line is never drawn.
  */
 export function ServicesColumn({
   index,
@@ -113,23 +97,18 @@ export function ServicesColumn({
   description?: string | null;
 }) {
   const reduce = useReducedMotion() ?? false;
-  const touch = useTouchDevice();
   const cols = useColsPerRow();
-  const mobile = reduce || touch || cols === 1;
+  const stacked = cols === 1;
 
   const blockVariants = {
-    hidden: { opacity: 0, y: mobile ? (touch || reduce ? 0 : 24) : 48 },
+    hidden: { opacity: 0, y: reduce ? 0 : 48 },
     visible: {
       opacity: 1,
       y: 0,
       transition: {
-        duration: mobile ? duration.fast : about.pageDuration,
+        duration: reduce ? duration.fast : about.pageDuration,
         ease: about.easeOut,
-        delay: reduce
-          ? 0
-          : mobile
-            ? about.stagger * (index % cols)
-            : about.stagger * index,
+        delay: reduce ? 0 : stacked ? 0 : about.stagger * index,
       },
     },
   };
@@ -141,7 +120,7 @@ export function ServicesColumn({
         visible: {
           scaleX: 1,
           transition: {
-            duration: mobile ? duration.fast : about.itemDuration * 0.8,
+            duration: about.itemDuration * 0.8,
             ease: about.easeOut,
             delay: 0,
           },
@@ -152,7 +131,7 @@ export function ServicesColumn({
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={VIEWPORT}
+      viewport={ABOUT_VIEWPORT}
       variants={blockVariants}
     >
       <span className="text-[18px] font-light tabular-nums text-white/45">

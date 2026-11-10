@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import type { AboutHeroCard } from "@/lib/about";
-import { useFrozenPage, useLoadGate } from "@/components/PageTransition";
+import { useFrozenPage } from "@/components/PageTransition";
+import { useGateOpen } from "./Reveal";
 import MediaFrame from "@/components/MediaFrame";
 import {
   ABOUT_HERO_CARD_RADIUS_CLASS,
@@ -74,9 +75,11 @@ export default function MediaMarquee({
   startDelay?: number;
 }) {
   const reduce = useReducedMotion() ?? false;
-  // The row starts sliding once the page is ready (the cards have appeared).
+  // The row starts sliding once the page is ready (the cards have appeared);
+  // the gate carries the shared failsafe so a stuck transition can never hold
+  // the row paused for ever.
   const frozen = useFrozenPage();
-  const play = useLoadGate();
+  const play = useGateOpen();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLUListElement>(null);

@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { SkillCategory } from "@/lib/about";
 import { isRemoteImageSrc } from "@/lib/image-source";
 import { EASE, about, duration } from "@/lib/motion";
-import { LineDraw } from "./Reveal";
+import { ABOUT_VIEWPORT, LineDraw } from "./Reveal";
 
 /* Thin top rule: transparent at both ends, darkest in the middle. */
 const LINE_GRADIENT =
@@ -88,7 +88,7 @@ export default function SkillsTabs({
         variants={pillsParent}
         initial={reduce ? false : "hidden"}
         whileInView="visible"
-        viewport={{ once: true, margin: "-10%" }}
+        viewport={ABOUT_VIEWPORT}
       >
         {categories.map((category) => {
           const isActive = category.id === active.id;
@@ -132,7 +132,7 @@ export default function SkillsTabs({
             variants={listParent}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, margin: "-10%" }}
+            viewport={ABOUT_VIEWPORT}
             exit="exit"
           >
             {active.skills.map((skill) => (

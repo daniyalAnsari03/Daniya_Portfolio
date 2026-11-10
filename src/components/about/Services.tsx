@@ -7,10 +7,11 @@ import { ServicesColumn, ServicesSection } from "./ServicesReveal";
  * and description — three per row on desktop, two on tablet, one on mobile.
  * On desktop the section is at least one screen tall and its content is
  * vertically centred; it only ever grows when there are more services.
- * Hidden entirely when there is no data. On desktop the section slides up into
- * place, then the columns appear one by one, each thin line drawing left to
- * right (scaleX). On mobile / touch each column fades in as one block as it
- * enters the viewport (see `ServicesReveal.tsx`).
+ * Hidden entirely when there is no data. The section slides up into place,
+ * then the columns appear one by one, each thin line drawing left to right
+ * (scaleX). The same sequence runs on every device (see
+ * `ServicesReveal.tsx`) — stacked single-column grids just start each column
+ * as it comes into view.
  */
 export default function Services({ services }: { services: Service[] }) {
   if (services.length === 0) return null;

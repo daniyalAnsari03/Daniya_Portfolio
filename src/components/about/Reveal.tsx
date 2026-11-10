@@ -2,7 +2,8 @@
 
 import {
   Fragment,
-  useSyncExternalStore,
+  useEffect,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -11,41 +12,48 @@ import { about, duration } from "@/lib/motion";
 import { useFrozenPage, useLoadGate } from "@/components/PageTransition";
 
 /* ------------------------------------------------------------------ */
-/* Capability probes                                                   */
+/* Shared About viewport trigger                                       */
 /*                                                                     */
-/* Both resolve after mount, so server and first client render are     */
-/* always identical (hydration safe).                                  */
+/* ONE trigger for every About `whileInView`: fire once and only once  */
+/* the element is 6% inside the BOTTOM of the viewport. No negative    */
+/* margin on top or the sides — on tall mobile stacks (and near the    */
+/* page end) an all-sided inset could leave elements waiting at        */
+/* opacity 0 forever.                                                  */
 /* ------------------------------------------------------------------ */
 
-const TOUCH_QUERY = "(hover: none)";
+export const ABOUT_VIEWPORT = {
+  once: true,
+  margin: "0px 0px -6% 0px",
+} as const;
 
-function subscribeTouch(callback: () => void) {
-  const query = window.matchMedia(TOUCH_QUERY);
-  query.addEventListener("change", callback);
-  return () => query.removeEventListener("change", callback);
-}
+/* ------------------------------------------------------------------ */
+/* Load gate + failsafe                                                */
+/* ------------------------------------------------------------------ */
 
-/** Touch device (no hover) — heavy motion collapses to short fades. */
-function useTouch(): boolean {
-  return useSyncExternalStore(
-    subscribeTouch,
-    () => window.matchMedia(TOUCH_QUERY).matches,
-    () => false,
-  );
-}
+/** How long a closed load gate may hold the About hero back (ms). */
+const GATE_FAILSAFE_MS = 2500;
 
 /**
- * Reduced motion and touch devices only get simple short fades: no word-by-
- * word splits, no slide distances, no delays on `reduce`.
+ * Load gate with a failsafe. The gate stays closed while a transition is
+ * still rising; if it has not opened within `GATE_FAILSAFE_MS` it is forced
+ * open so the About hero (heading lines, subtitle, cards row, marquee) can
+ * never stay hidden. On a direct page load the gate is already open and no
+ * timer is ever armed — those loads behave exactly as before. The flag lives
+ * only for the lifetime of one page instance (it starts `false` and the gate
+ * opens before any new page mounts), so no reset is ever needed.
  */
-function useSimple(): { reduce: boolean; touch: boolean; simple: boolean } {
-  const reduce = useReducedMotion() ?? false;
-  const touch = useTouch();
-  return { reduce, touch, simple: reduce || touch };
-}
+export function useGateOpen(): boolean {
+  const play = useLoadGate();
+  const [forced, setForced] = useState(false);
 
-/** Standard viewport config: fires once, 10% inside the viewport. */
-const VIEWPORT = { once: true, margin: "-10%" } as const;
+  useEffect(() => {
+    if (play) return;
+    const timer = window.setTimeout(() => setForced(true), GATE_FAILSAFE_MS);
+    return () => window.clearTimeout(timer);
+  }, [play]);
+
+  return play || forced;
+}
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -53,7 +61,7 @@ const VIEWPORT = { once: true, margin: "-10%" } as const;
 
 /**
  * Generic scroll reveal (whileInView, once). Fades in while sliding a short
- * distance in `direction`; on touch/reduced motion it is a plain short fade.
+ * distance in `direction`. Reduced motion: plain short fade, no travel.
  * Renders a motion.div, so grid/flex classes can be passed via `className`.
  */
 export function Reveal({
@@ -69,8 +77,8 @@ export function Reveal({
   direction?: "up" | "down" | "left" | "right";
   distance?: number;
 }) {
-  const { reduce, simple } = useSimple();
-  const slide = simple ? 0 : distance;
+  const reduce = useReducedMotion() ?? false;
+  const slide = reduce ? 0 : distance;
   const x = direction === "left" ? -slide : direction === "right" ? slide : 0;
   const y = direction === "up" ? slide : direction === "down" ? -slide : 0;
 
@@ -81,7 +89,7 @@ export function Reveal({
       x: 0,
       y: 0,
       transition: {
-        duration: simple ? duration.fast : about.pageDuration,
+        duration: reduce ? duration.fast : about.pageDuration,
         ease: about.easeOut,
         delay: reduce ? 0 : delay,
       },
@@ -93,7 +101,7 @@ export function Reveal({
       className={className}
       initial="hidden"
       whileInView="visible"
-      viewport={VIEWPORT}
+      viewport={ABOUT_VIEWPORT}
       variants={variants}
     >
       {children}
@@ -103,48 +111,34 @@ export function Reveal({
 
 /**
  * Statement heading that rises word by word (one IntersectionObserver on the
- * wrapper, staggered children). Touch / reduced motion: one short fade of the
- * whole text instead of a word split.
+ * wrapper, staggered children). The word spans are ALWAYS rendered — the DOM
+ * never swaps after hydration. Reduced motion: no rise, no stagger — the
+ * words fade in as one, straight away.
  */
 export function WordReveal({
   text,
   className,
-  delay = 0,
 }: {
   text: string;
   className?: string;
-  delay?: number;
 }) {
-  const { reduce, simple } = useSimple();
+  const reduce = useReducedMotion() ?? false;
   const words = text.split(/\s+/).filter(Boolean);
 
   if (words.length === 0) return null;
-
-  if (simple) {
-    return (
-      <motion.span
-        className={className}
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={VIEWPORT}
-        transition={{
-          duration: duration.fast,
-          ease: about.easeOut,
-          delay: reduce ? 0 : delay,
-        }}
-      >
-        {text}
-      </motion.span>
-    );
-  }
 
   return (
     <motion.span
       className={className}
       initial="hidden"
       whileInView="visible"
-      viewport={VIEWPORT}
-      variants={{ hidden: {}, visible: { transition: { staggerChildren: about.stagger } } }}
+      viewport={ABOUT_VIEWPORT}
+      variants={{
+        hidden: {},
+        visible: {
+          transition: { staggerChildren: reduce ? 0 : about.stagger },
+        },
+      }}
     >
       {words.map((word, index) => (
         <Fragment key={index}>
@@ -152,12 +146,12 @@ export function WordReveal({
           <motion.span
             className="inline-block"
             variants={{
-              hidden: { opacity: 0, y: 24 },
+              hidden: { opacity: 0, y: reduce ? 0 : 24 },
               visible: {
                 opacity: 1,
                 y: 0,
                 transition: {
-                  duration: about.pageDuration,
+                  duration: reduce ? duration.fast : about.pageDuration,
                   ease: about.easeOut,
                 },
               },
@@ -174,8 +168,8 @@ export function WordReveal({
 /**
  * Thin rule that draws left → right. Can animate via its own whileInView
  * (default) or inherit from parent variants when used inside a reveal wrapper.
- * Touch / reduced motion: fully revealed, no draw. Put the background in
- * `className` (e.g. `bg-white/35`) or `style` (gradient).
+ * Reduced motion: fully revealed, no draw. Put the background in `className`
+ * (e.g. `bg-white/35`) or `style` (gradient).
  *
  * The line is ALWAYS a full-size 1px element carrying its final colour; only
  * a `clip-path` inset is animated. It must never start at `scaleX(0)`.
@@ -191,17 +185,17 @@ export function LineDraw({
   style?: CSSProperties;
   inherit?: boolean;
 }) {
-  const { reduce, simple } = useSimple();
+  const reduce = useReducedMotion() ?? false;
 
   const variants = inherit
     ? {
         hidden: {
-          clipPath: simple ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)",
+          clipPath: reduce ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)",
         },
         visible: {
           clipPath: "inset(0% 0% 0% 0%)",
           transition: {
-            duration: simple ? duration.fast : about.itemDuration * 0.8,
+            duration: reduce ? duration.fast : about.itemDuration * 0.8,
             ease: about.easeOut,
             delay: reduce ? 0 : delay,
           },
@@ -226,12 +220,12 @@ export function LineDraw({
       className={`h-px w-full ${className ?? ""}`}
       style={style}
       initial={{
-        clipPath: simple ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)",
+        clipPath: reduce ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)",
       }}
       whileInView={{ clipPath: "inset(0% 0% 0% 0%)" }}
-      viewport={VIEWPORT}
+      viewport={ABOUT_VIEWPORT}
       transition={{
-        duration: simple ? duration.fast : about.itemDuration * 0.8,
+        duration: reduce ? duration.fast : about.itemDuration * 0.8,
         ease: about.easeOut,
         delay: reduce ? 0 : delay,
       }}
@@ -241,8 +235,8 @@ export function LineDraw({
 
 /**
  * Hero heading line for the initial load sequence: rises from below a clip
- * mask, line by line (absolute `delay` from page load). Touch / reduced
- * motion: short fade, no travel.
+ * mask, line by line (absolute `delay` from page load). Reduced motion:
+ * short fade, no travel.
  */
 export function LoadMaskLine({
   children,
@@ -251,22 +245,20 @@ export function LoadMaskLine({
   children: ReactNode;
   delay: number;
 }) {
-  const { reduce, simple } = useSimple();
+  const reduce = useReducedMotion() ?? false;
   // The line waits for the page to be ready (the rise has finished) and never
   // animates in the frozen copy of the outgoing page.
   const frozen = useFrozenPage();
-  const play = useLoadGate();
+  const play = useGateOpen();
 
   return (
     <span className="block overflow-hidden pb-[0.1em] -mb-[0.1em]">
       <motion.span
         className="block"
-        initial={
-          frozen ? false : { opacity: 0, y: simple ? "0%" : "115%" }
-        }
+        initial={frozen ? false : { opacity: 0, y: reduce ? "0%" : "115%" }}
         animate={frozen || play ? { opacity: 1, y: "0%" } : undefined}
         transition={{
-          duration: simple ? duration.fast : about.pageDuration,
+          duration: reduce ? duration.fast : about.pageDuration,
           ease: about.easeOut,
           delay: reduce ? 0 : delay,
         }}
@@ -279,7 +271,7 @@ export function LoadMaskLine({
 
 /**
  * Initial-load rise + fade (hero subtitle, cards row). Plays once on mount
- * with an absolute `delay`; touch / reduced motion gets a short fade only.
+ * with an absolute `delay`; reduced motion gets a short fade only.
  */
 export function LoadRise({
   children,
@@ -292,19 +284,19 @@ export function LoadRise({
   delay?: number;
   distance?: number;
 }) {
-  const { reduce, simple } = useSimple();
+  const reduce = useReducedMotion() ?? false;
   // The rise waits for the page to be ready (the rise has finished) and never
   // animates in the frozen copy of the outgoing page.
   const frozen = useFrozenPage();
-  const play = useLoadGate();
+  const play = useGateOpen();
 
   return (
     <motion.div
       className={className}
-      initial={frozen ? false : { opacity: 0, y: simple ? 0 : distance }}
+      initial={frozen ? false : { opacity: 0, y: reduce ? 0 : distance }}
       animate={frozen || play ? { opacity: 1, y: 0 } : undefined}
       transition={{
-        duration: simple ? duration.fast : about.pageDuration,
+        duration: reduce ? duration.fast : about.pageDuration,
         ease: about.easeOut,
         delay: reduce ? 0 : delay,
       }}
@@ -316,7 +308,7 @@ export function LoadRise({
 
 /**
  * A whole <section> that slides up into place the first time it scrolls into
- * view (used by the dark Services screen). Touch / reduced motion: short fade.
+ * view (used by the dark Services screen). Reduced motion: short fade.
  */
 export function SectionRise({
   children,
@@ -330,18 +322,18 @@ export function SectionRise({
   /** Marks the section as a dark zone so the fixed header inverts over it. */
   dataChromeDark?: boolean;
 }) {
-  const { simple } = useSimple();
+  const reduce = useReducedMotion() ?? false;
 
   return (
     <motion.section
       id={id}
       className={className}
       data-chrome-dark={dataChromeDark ? "true" : undefined}
-      initial={{ opacity: 0, y: simple ? 0 : 56 }}
+      initial={{ opacity: 0, y: reduce ? 0 : 56 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={VIEWPORT}
+      viewport={ABOUT_VIEWPORT}
       transition={{
-        duration: simple ? duration.fast : about.pageDuration,
+        duration: reduce ? duration.fast : about.pageDuration,
         ease: about.easeInOut,
       }}
     >
